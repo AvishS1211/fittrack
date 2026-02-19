@@ -9,7 +9,7 @@ export default async function handler(req, res) {
   const { prompt } = req.body;
 
   // Hardcoded key
-  const GEMINI_API_KEY = "AIzaSyArxSCLPtLwzuewFcLDhmcz0O-OgNHIXjg";
+  const GEMINI_API_KEY = "AIzaSyBiwJLqAACUIDsVozYyY5Sar1hFZryZjuo";
 
   try {
     // Step 1 - Get available models
