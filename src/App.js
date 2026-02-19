@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
-  "https://wpwqgkopcfmnzsojtzum.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indwd3Fna29wY2Ztbnpzb2p0enVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE0MjQ1ODYsImV4cCI6MjA4NzAwMDU4Nn0.7ByIPFmTF8FW2dK75iekhBVnoSt4C0HIODoTfyCfgVM"
+  "https://mwyredyryqtwlaqllbra.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im13eXJlZHlyeXF0d2xhcWxsYnJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE0OTM5MzYsImV4cCI6MjA4NzA2OTkzNn0.xrh4HK0VN979PcMa3Xjfvg_eVXOLh5KD7uuFZ40PZ3Q"
 );
 
 const CATEGORIES = [
