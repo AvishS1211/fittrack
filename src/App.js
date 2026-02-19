@@ -118,14 +118,19 @@ export default function FitnessTracker() {
   const addWorkout = async () => {
     if (!wForm.exercise.trim()) { showToast("Enter exercise name", "error"); return; }
     const entry = { id: Date.now(), ...wForm, sets: Number(wForm.sets) || 0, reps: Number(wForm.reps) || 0, weight: Number(wForm.weight) || 0, duration: Number(wForm.duration) || 0 };
+    console.log("Saving workout:", JSON.stringify(entry));
     try {
-      const { error } = await supabase.from("fit_workouts").insert(entry);
+      const { data, error } = await supabase.from("fit_workouts").insert(entry).select();
+      console.log("Supabase data:", JSON.stringify(data), "error:", JSON.stringify(error));
       if (error) throw error;
       setWorkouts(prev => [entry, ...prev]);
       setWForm({ exercise: "", category: "Chest", sets: "", reps: "", weight: "", duration: "", date: todayStr(), note: "" });
       showToast("Workout logged! 💪");
       setView("dashboard");
-    } catch { showToast("Failed to save", "error"); }
+    } catch (err) {
+      console.log("Error:", JSON.stringify(err));
+      showToast("Failed: " + (err?.message || "Unknown error"), "error");
+    }
   };
 
   // ── Add Meal ──
