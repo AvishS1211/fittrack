@@ -51,6 +51,58 @@ function StatRing({ value, max, size = 80, stroke = 7, color = "#FF3D00", label,
   );
 }
 
+function WeightChart({ data }) {
+  const W = 440, H = 170, padX = 14, padTop = 18, padBottom = 26;
+  if (data.length === 0) {
+    return (
+      <div style={{ textAlign: "center", color: "#333", fontSize: 13, padding: "30px 0" }}>
+        Log your weight to see your trend
+      </div>
+    );
+  }
+  const pts = data.slice(-30);
+  const vals = pts.map(p => Number(p.weight));
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const range = max - min || 1;
+  const innerW = W - padX * 2;
+  const innerH = H - padTop - padBottom;
+  const x = i => pts.length === 1 ? W / 2 : padX + (i / (pts.length - 1)) * innerW;
+  const y = v => padTop + innerH - ((v - min) / range) * innerH;
+  const coords = pts.map((p, i) => ({ cx: x(i), cy: y(Number(p.weight)) }));
+  const line = coords.map((c, i) => `${i === 0 ? "M" : "L"}${c.cx.toFixed(1)},${c.cy.toFixed(1)}`).join(" ");
+  const area = `${line} L${coords[coords.length - 1].cx.toFixed(1)},${(padTop + innerH).toFixed(1)} L${coords[0].cx.toFixed(1)},${(padTop + innerH).toFixed(1)} Z`;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ overflow: "visible" }}>
+      <defs>
+        <linearGradient id="wgFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#FF3D00" stopOpacity="0.35" />
+          <stop offset="100%" stopColor="#FF3D00" stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id="wgLine" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#FF3D00" />
+          <stop offset="100%" stopColor="#FF9100" />
+        </linearGradient>
+      </defs>
+      {[0, 0.5, 1].map(t => (
+        <line key={t} x1={padX} y1={padTop + innerH * t} x2={W - padX} y2={padTop + innerH * t} stroke="#1A1A1A" strokeWidth="1" />
+      ))}
+      {pts.length > 1 && <path d={area} fill="url(#wgFill)" />}
+      <path d={line} fill="none" stroke="url(#wgLine)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ filter: "drop-shadow(0 0 6px #FF3D0066)" }} />
+      {coords.map((c, i) => (
+        <g key={i}>
+          <circle cx={c.cx} cy={c.cy} r={i === coords.length - 1 ? 4.5 : 3} fill="#0A0A0A" stroke="#FF6D00" strokeWidth="2" />
+          {(i === 0 || i === coords.length - 1) && (
+            <text x={c.cx} y={c.cy - 10} textAnchor="middle" fill="#FF9100" fontSize="11" fontWeight="700">{pts[i].weight}</text>
+          )}
+        </g>
+      ))}
+      <text x={padX} y={H - 8} fill="#444" fontSize="9">{formatDate(pts[0].date)}</text>
+      <text x={W - padX} y={H - 8} textAnchor="end" fill="#444" fontSize="9">{formatDate(pts[pts.length - 1].date)}</text>
+    </svg>
+  );
+}
+
 export default function FitnessTracker() {
   const [view, setView] = useState("dashboard");
   const [workouts, setWorkouts] = useState([]);
@@ -67,6 +119,8 @@ export default function FitnessTracker() {
 
   const [wForm, setWForm] = useState({ exercise: "", category: "Chest", sets: "", reps: "", weight: "", duration: "", date: todayStr(), note: "" });
   const [mForm, setMForm] = useState({ name: "", type: "Breakfast", calories: "", protein: "", carbs: "", fat: "", date: todayStr() });
+  const [weights, setWeights] = useState([]);
+  const [wgForm, setWgForm] = useState({ weight: "", date: todayStr() });
 
   // ── Load from Supabase ──
   useEffect(() => {
@@ -77,9 +131,11 @@ export default function FitnessTracker() {
         const { data: m } = await supabase.from("fit_meals").select("*").order("date", { ascending: false });
         const { data: a } = await supabase.from("fit_ai").select("*").order("created_at", { ascending: false }).limit(10);
         const { data: g } = await supabase.from("fit_goals").select("*").eq("id", 1).single();
+        const { data: wg } = await supabase.from("fit_weight").select("*").order("date", { ascending: true });
         if (w) setWorkouts(w);
         if (m) setMeals(m);
         if (a) setAiHistory(a);
+        if (wg) setWeights(wg);
         if (g) setGoals({ calories: g.calories, protein: g.protein, workoutsPerWeek: g.workouts_per_week });
       } catch {}
       setLoading(false);
@@ -156,6 +212,30 @@ export default function FitnessTracker() {
   const deleteMeal = async (id) => {
     await supabase.from("fit_meals").delete().eq("id", id);
     setMeals(prev => prev.filter(m => m.id !== id));
+    showToast("Deleted", "info");
+  };
+
+  // ── Add / Delete Weight ──
+  const addWeight = async () => {
+    const val = Number(wgForm.weight);
+    if (!val || val <= 0) { showToast("Enter your weight", "error"); return; }
+    const entry = { id: Date.now(), weight: val, date: wgForm.date };
+    try {
+      // one entry per day — replace any existing entry for this date
+      const existing = weights.filter(w => w.date === entry.date);
+      for (const e of existing) await supabase.from("fit_weight").delete().eq("id", e.id);
+      const { error } = await supabase.from("fit_weight").insert(entry);
+      if (error) throw error;
+      setWeights(prev => [...prev.filter(w => w.date !== entry.date), entry].sort((a, b) => a.date.localeCompare(b.date)));
+      setWgForm({ weight: "", date: todayStr() });
+      showToast("Weight logged! ⚖️");
+    } catch (err) {
+      showToast("Failed: " + (err?.message || "Unknown error"), "error");
+    }
+  };
+  const deleteWeight = async (id) => {
+    await supabase.from("fit_weight").delete().eq("id", id);
+    setWeights(prev => prev.filter(w => w.id !== id));
     showToast("Deleted", "info");
   };
 
@@ -556,6 +636,85 @@ export default function FitnessTracker() {
             )}
           </div>
         )}
+
+        {/* ── WEIGHT ── */}
+        {view === "weight" && (() => {
+          const sorted = [...weights].sort((a, b) => a.date.localeCompare(b.date));
+          const latest = sorted[sorted.length - 1];
+          const first = sorted[0];
+          const change = latest && first ? Number(latest.weight) - Number(first.weight) : 0;
+          const lo = sorted.length ? Math.min(...sorted.map(w => Number(w.weight))) : 0;
+          const hi = sorted.length ? Math.max(...sorted.map(w => Number(w.weight))) : 0;
+          return (
+            <div style={{ animation: "fadeUp 0.4s ease" }}>
+              {/* Stats */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
+                <div style={{ background: "#111", borderRadius: 20, padding: 16, border: "1px solid #1E1E1E" }}>
+                  <div style={{ fontSize: 26, fontFamily: "'Bebas Neue'", color: "#FF3D00", letterSpacing: 1 }}>{latest ? latest.weight : "—"}</div>
+                  <div style={{ fontSize: 10, color: "#555", letterSpacing: 1, marginTop: 2 }}>CURRENT kg</div>
+                </div>
+                <div style={{ background: "#111", borderRadius: 20, padding: 16, border: "1px solid #1E1E1E" }}>
+                  <div style={{ fontSize: 26, fontFamily: "'Bebas Neue'", color: change <= 0 ? "#4ADE80" : "#FF9100", letterSpacing: 1 }}>{change > 0 ? "+" : ""}{sorted.length > 1 ? change.toFixed(1) : "—"}</div>
+                  <div style={{ fontSize: 10, color: "#555", letterSpacing: 1, marginTop: 2 }}>CHANGE kg</div>
+                </div>
+                <div style={{ background: "#111", borderRadius: 20, padding: 16, border: "1px solid #1E1E1E" }}>
+                  <div style={{ fontSize: 16, fontFamily: "'Bebas Neue'", color: "#FF6D00", letterSpacing: 1, marginTop: 6 }}>{sorted.length ? `${lo}–${hi}` : "—"}</div>
+                  <div style={{ fontSize: 10, color: "#555", letterSpacing: 1, marginTop: 6 }}>RANGE kg</div>
+                </div>
+              </div>
+
+              {/* Chart */}
+              <div style={{ background: "#111", borderRadius: 24, padding: 20, border: "1px solid #1E1E1E", marginBottom: 16 }}>
+                <div style={{ fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 3, color: "#444", marginBottom: 8 }}>WEIGHT TREND</div>
+                <WeightChart data={sorted} />
+              </div>
+
+              {/* Log Form */}
+              <div style={{ background: "#111", borderRadius: 24, padding: 24, border: "1px solid #1E1E1E", marginBottom: 16 }}>
+                <div style={{ fontFamily: "'Bebas Neue'", fontSize: 18, letterSpacing: 3, color: "#FF3D00", marginBottom: 20 }}>LOG WEIGHT</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr", gap: 10, marginBottom: 20 }}>
+                  <div>
+                    <div style={{ fontSize: 10, color: "#555", letterSpacing: 2, marginBottom: 8 }}>WEIGHT (kg)</div>
+                    <input type="number" inputMode="decimal" value={wgForm.weight} onChange={e => setWgForm(f => ({ ...f, weight: e.target.value }))} onKeyDown={e => e.key === "Enter" && addWeight()} placeholder="75.0" style={{ width: "100%", background: "#0A0A0A", border: "1px solid #222", borderRadius: 12, padding: "12px 16px", color: "#fff", fontSize: 18, fontFamily: "'Bebas Neue'", letterSpacing: 1, textAlign: "center" }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, color: "#555", letterSpacing: 2, marginBottom: 8 }}>DATE</div>
+                    <input type="date" value={wgForm.date} onChange={e => setWgForm(f => ({ ...f, date: e.target.value }))} style={{ width: "100%", background: "#0A0A0A", border: "1px solid #222", borderRadius: 12, padding: "12px 16px", color: "#fff", fontSize: 14 }} />
+                  </div>
+                </div>
+                <button onClick={addWeight} style={{ width: "100%", padding: "16px", borderRadius: 16, background: "linear-gradient(135deg, #FF3D00, #FF9100)", color: "#fff", fontSize: 16, fontFamily: "'Bebas Neue'", letterSpacing: 3, boxShadow: "0 8px 24px #FF3D0044" }}>
+                  LOG WEIGHT ⚖️
+                </button>
+              </div>
+
+              {/* History */}
+              {sorted.length > 0 && (
+                <div style={{ background: "#111", borderRadius: 24, padding: 20, border: "1px solid #1E1E1E" }}>
+                  <div style={{ fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 3, color: "#444", marginBottom: 16 }}>WEIGH-INS</div>
+                  {[...sorted].reverse().slice(0, 10).map((w, i, arr) => {
+                    const prev = [...sorted].reverse()[i + 1];
+                    const diff = prev ? Number(w.weight) - Number(prev.weight) : 0;
+                    return (
+                      <div key={w.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: i < arr.length - 1 ? "1px solid #1A1A1A" : "none" }}>
+                        <div style={{ width: 38, height: 38, borderRadius: 10, background: "#FF3D0018", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>⚖️</div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 14, fontWeight: 600 }}>{w.weight} kg</div>
+                          <div style={{ fontSize: 10, color: "#555", marginTop: 2 }}>{formatDate(w.date)}</div>
+                        </div>
+                        {prev && (
+                          <div style={{ fontSize: 11, fontWeight: 600, color: diff < 0 ? "#4ADE80" : diff > 0 ? "#FF9100" : "#555" }}>
+                            {diff > 0 ? "+" : ""}{diff.toFixed(1)}
+                          </div>
+                        )}
+                        <button onClick={() => deleteWeight(w.id)} style={{ background: "#1A1A1A", border: "none", borderRadius: 8, color: "#333", width: 26, height: 26, fontSize: 11 }}>✕</button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Bottom Nav */}
@@ -563,6 +722,7 @@ export default function FitnessTracker() {
         {[
           { id: "dashboard", icon: "📊", label: "TODAY" },
           { id: "add", icon: "➕", label: "LOG" },
+          { id: "weight", icon: "⚖️", label: "WEIGHT" },
           { id: "history", icon: "📋", label: "HISTORY" },
           { id: "ai", icon: "🤖", label: "COACH" }
         ].map(tab => (
