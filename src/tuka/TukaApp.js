@@ -37,6 +37,7 @@ export default function TukaApp() {
   const [dInput, setDInput] = useState(todayStr());
   const [tInput, setTInput] = useState("");
   const [showTarget, setShowTarget] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [toast, setToast] = useState(null);
 
   // Load everything from Supabase on mount.
@@ -151,13 +152,22 @@ export default function TukaApp() {
           <img src="/tuka-icon.png" alt="" width={34} height={34} style={{ borderRadius: 9 }} />
           <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.02em" }}>tuka</div>
         </div>
-        <button onClick={openTarget} aria-label="Set target" style={{
-          display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
-          width: 48, height: 48, borderRadius: "50%", padding: 0,
-          background: C.surface, border: `1px solid ${C.border}`,
-        }}>
-          <img src="/target.png" alt="" width={22} height={22} />
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={() => setShowHistory(true)} aria-label="Weight history" style={{
+            display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+            width: 48, height: 48, borderRadius: "50%", padding: 0,
+            background: C.surface, border: `1px solid ${C.border}`,
+          }}>
+            <img src="/history.png" alt="" width={22} height={22} />
+          </button>
+          <button onClick={openTarget} aria-label="Set target" style={{
+            display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+            width: 48, height: 48, borderRadius: "50%", padding: 0,
+            background: C.surface, border: `1px solid ${C.border}`,
+          }}>
+            <img src="/target.png" alt="" width={22} height={22} />
+          </button>
+        </div>
       </header>
 
       <main style={{ display: "flex", flexDirection: "column", gap: 14, animation: "tukaIn 0.4s ease" }}>
@@ -234,33 +244,6 @@ export default function TukaApp() {
           }}>Log weight</button>
         </Card>
 
-        {/* History */}
-        {sorted.length > 0 && (
-          <Card>
-            <Eyebrow>History</Eyebrow>
-            <div style={{ marginTop: 8 }}>
-              {[...sorted].reverse().map((w, i, arr) => {
-                const prev = arr[i + 1];
-                const diff = prev ? Number(w.kg) - Number(prev.kg) : null;
-                return (
-                  <div key={w.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 0", borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none" }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 15, fontWeight: 600 }}>{w.kg}<span style={{ fontSize: 11, fontStyle: "italic", color: C.muted }}> kg</span></div>
-                      <div style={{ fontSize: 11, color: C.faint, marginTop: 2 }}>{fmtDate(w.date)}</div>
-                    </div>
-                    {diff != null && (
-                      <div style={{ fontSize: 12, fontWeight: 600, color: diff < 0 ? C.positive : diff > 0 ? C.warning : C.faint }}>
-                        {diff > 0 ? "+" : ""}{diff.toFixed(1)}
-                      </div>
-                    )}
-                    <button onClick={() => removeWeight(w.id)} style={{ background: "transparent", border: "none", color: C.faint, cursor: "pointer", fontSize: 14, width: 26 }}>✕</button>
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
-        )}
-
         <div style={{ textAlign: "center", fontSize: 11, color: C.faint, paddingTop: 6 }}>
           Synced across your devices.
         </div>
@@ -299,6 +282,42 @@ export default function TukaApp() {
                 <button onClick={removeTarget} style={{ marginTop: 14, background: "transparent", border: "none", color: C.warning, cursor: "pointer", fontSize: 12, fontFamily: "inherit", padding: 0 }}>
                   Remove current target
                 </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* History popup */}
+      {showHistory && (
+        <div onClick={() => setShowHistory(false)} style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 420, maxHeight: "80vh", display: "flex", flexDirection: "column", background: C.surface, borderRadius: 24, border: `1px solid ${C.border}`, padding: 24, animation: "tukaPop 0.25s ease" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <Eyebrow>Weight history</Eyebrow>
+              <button onClick={() => setShowHistory(false)} style={{ background: "transparent", border: "none", color: C.faint, cursor: "pointer", fontSize: 16 }}>✕</button>
+            </div>
+            {sorted.length === 0 ? (
+              <div style={{ color: C.faint, fontSize: 13, padding: "24px 0", textAlign: "center" }}>No weigh-ins yet.</div>
+            ) : (
+              <div style={{ overflowY: "auto", marginTop: 4 }}>
+                {[...sorted].reverse().map((w, i, arr) => {
+                  const prev = arr[i + 1];
+                  const diff = prev ? Number(w.kg) - Number(prev.kg) : null;
+                  return (
+                    <div key={w.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 0", borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none" }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 15, fontWeight: 600 }}>{w.kg}<span style={{ fontSize: 11, fontStyle: "italic", color: C.muted }}> kg</span></div>
+                        <div style={{ fontSize: 11, color: C.faint, marginTop: 2 }}>{fmtDate(w.date)}</div>
+                      </div>
+                      {diff != null && (
+                        <div style={{ fontSize: 12, fontWeight: 600, color: diff < 0 ? C.positive : diff > 0 ? C.warning : C.faint }}>
+                          {diff > 0 ? "+" : ""}{diff.toFixed(1)}
+                        </div>
+                      )}
+                      <button onClick={() => removeWeight(w.id)} style={{ background: "transparent", border: "none", color: C.faint, cursor: "pointer", fontSize: 14, width: 26 }}>✕</button>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
