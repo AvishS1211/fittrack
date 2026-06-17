@@ -292,15 +292,15 @@ export default function TukaApp() {
       {/* History popup — bottom sheet */}
       {showHistory && (
         <div onClick={() => setShowHistory(false)} style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-          <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 480, maxHeight: "80vh", display: "flex", flexDirection: "column", background: C.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, border: `1px solid ${C.border}`, padding: "24px 20px calc(env(safe-area-inset-bottom) + 24px)", animation: "tukaSheet 0.28s cubic-bezier(0.22,1,0.36,1)" }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 480, height: "75vh", display: "flex", flexDirection: "column", background: C.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, border: `1px solid ${C.border}`, padding: "24px 20px calc(env(safe-area-inset-bottom) + 24px)", animation: "tukaSheet 0.28s cubic-bezier(0.22,1,0.36,1)" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
               <Eyebrow>Weight history</Eyebrow>
               <button onClick={() => setShowHistory(false)} style={{ background: "transparent", border: "none", color: C.faint, cursor: "pointer", fontSize: 16 }}>✕</button>
             </div>
             {sorted.length === 0 ? (
-              <div style={{ color: C.faint, fontSize: 13, padding: "24px 0", textAlign: "center" }}>No weigh-ins yet.</div>
+              <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", color: C.faint, fontSize: 13 }}>No weigh-ins yet.</div>
             ) : (
-              <div style={{ overflowY: "auto", marginTop: 4 }}>
+              <div style={{ flex: 1, minHeight: 0, overflowY: "auto", marginTop: 4 }}>
                 {[...sorted].reverse().map((w, i, arr) => {
                   const prev = arr[i + 1];
                   const diff = prev ? Number(w.kg) - Number(prev.kg) : null;
