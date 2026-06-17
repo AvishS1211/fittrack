@@ -1,10 +1,7 @@
 import { useState, useEffect } from "react";
 import { C, MONTHS, todayStr } from "./theme";
+import { supabase } from "./supabaseClient";
 import WeightChart from "./WeightChart";
-
-const LS_WEIGHTS = "tuka_weights";
-const LS_TARGETS = "tuka_targets";
-const LS_TARGET_OLD = "tuka_target"; // pre-history single value (migrated on load)
 
 const RANGES = [
   { id: "1M", label: "1M", days: 31 },
@@ -13,19 +10,6 @@ const RANGES = [
   { id: "1Y", label: "1Y", days: 366 },
   { id: "ALL", label: "ALL", days: Infinity },
 ];
-
-const load = (key, fallback) => {
-  try { const v = localStorage.getItem(key); return v == null ? fallback : JSON.parse(v); }
-  catch { return fallback; }
-};
-
-// Targets are kept as a chronological history [{ id, value }]; the last is current.
-const loadTargets = () => {
-  const arr = load(LS_TARGETS, null);
-  if (Array.isArray(arr)) return arr;
-  const old = load(LS_TARGET_OLD, null); // migrate legacy single target
-  return old != null ? [{ id: Date.now(), value: old }] : [];
-};
 
 function fmtDate(ds) { const d = new Date(ds); return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`; }
 
@@ -46,8 +30,8 @@ function Metric({ value, unit, size = 52, color = C.text }) {
 }
 
 export default function TukaApp() {
-  const [weights, setWeights] = useState(() => load(LS_WEIGHTS, []));
-  const [targets, setTargets] = useState(loadTargets);
+  const [weights, setWeights] = useState([]);
+  const [targets, setTargets] = useState([]);
   const [range, setRange] = useState("6M");
   const [wInput, setWInput] = useState("");
   const [dInput, setDInput] = useState(todayStr());
@@ -55,8 +39,15 @@ export default function TukaApp() {
   const [showTarget, setShowTarget] = useState(false);
   const [toast, setToast] = useState(null);
 
-  useEffect(() => { localStorage.setItem(LS_WEIGHTS, JSON.stringify(weights)); }, [weights]);
-  useEffect(() => { localStorage.setItem(LS_TARGETS, JSON.stringify(targets)); }, [targets]);
+  // Load everything from Supabase on mount.
+  useEffect(() => {
+    (async () => {
+      const { data: w } = await supabase.from("tuka_weights").select("*").order("date", { ascending: true });
+      const { data: t } = await supabase.from("tuka_targets").select("*").order("id", { ascending: true });
+      if (w) setWeights(w);
+      if (t) setTargets(t.map(r => ({ id: r.id, value: r.value })));
+    })();
+  }, []);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2200); };
 
@@ -88,28 +79,48 @@ export default function TukaApp() {
   }
   const trendColor = towardTarget == null ? C.muted : towardTarget ? C.positive : C.warning;
 
-  const logWeight = () => {
+  const logWeight = async () => {
     const kg = parseFloat(wInput);
     if (!kg || kg <= 0) { showToast("Enter a weight"); return; }
     const entry = { id: Date.now(), kg: Math.round(kg * 10) / 10, date: dInput };
-    setWeights(prev => [...prev.filter(w => w.date !== entry.date), entry]); // one per day
     setWInput("");
     setDInput(todayStr());
-    showToast("Logged");
+    try {
+      // one weigh-in per day — replace any existing row for this date
+      await supabase.from("tuka_weights").delete().eq("date", entry.date);
+      const { error } = await supabase.from("tuka_weights").insert(entry);
+      if (error) throw error;
+      setWeights(prev => [...prev.filter(w => w.date !== entry.date), entry]);
+      showToast("Logged");
+    } catch (err) { showToast("Couldn't save: " + (err?.message || "error")); }
   };
-  const removeWeight = (id) => setWeights(prev => prev.filter(w => w.id !== id));
+  const removeWeight = async (id) => {
+    setWeights(prev => prev.filter(w => w.id !== id));
+    await supabase.from("tuka_weights").delete().eq("id", id);
+  };
 
   const openTarget = () => { setTInput(target != null ? String(target) : ""); setShowTarget(true); };
-  const saveTarget = () => {
+  const saveTarget = async () => {
     const t = parseFloat(tInput);
     if (!t || t <= 0) { showToast("Enter a target"); return; }
     const value = Math.round(t * 10) / 10;
     if (value === target) { setShowTarget(false); return; }
-    setTargets(prev => [...prev, { id: Date.now(), value }]);
+    const row = { id: Date.now(), value };
     setShowTarget(false);
-    showToast("Target set");
+    try {
+      const { error } = await supabase.from("tuka_targets").insert(row);
+      if (error) throw error;
+      setTargets(prev => [...prev, row]);
+      showToast("Target set");
+    } catch (err) { showToast("Couldn't save: " + (err?.message || "error")); }
   };
-  const removeTarget = () => { setTargets(prev => prev.slice(0, -1)); setShowTarget(false); showToast("Target removed"); };
+  const removeTarget = async () => {
+    const current = targets[targets.length - 1];
+    setTargets(prev => prev.slice(0, -1));
+    setShowTarget(false);
+    if (current) await supabase.from("tuka_targets").delete().eq("id", current.id);
+    showToast("Target removed");
+  };
 
   const input = {
     background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 12,
@@ -255,7 +266,7 @@ export default function TukaApp() {
         )}
 
         <div style={{ textAlign: "center", fontSize: 11, color: C.faint, paddingTop: 6 }}>
-          Stored privately on this device.
+          Synced across your devices.
         </div>
       </main>
 
