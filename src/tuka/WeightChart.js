@@ -2,7 +2,8 @@ import { useState } from "react";
 import { C, MONTHS } from "./theme";
 
 // Apple-Health-style weight line chart with a dashed target reference line.
-export default function WeightChart({ data, target }) {
+// `target` is the current goal (green); `prevTargets` are up to 2 prior goals (grey).
+export default function WeightChart({ data, target, prevTargets = [] }) {
   const [sel, setSel] = useState(null); // selected reading index (within `data`)
 
   const W = 360, H = 210;
@@ -21,7 +22,8 @@ export default function WeightChart({ data, target }) {
   const vals = data.map(d => Number(d.kg));
   let lo = Math.min(...vals);
   let hi = Math.max(...vals);
-  if (target != null) { lo = Math.min(lo, target); hi = Math.max(hi, target); }
+  const allTargets = [target, ...prevTargets].filter(t => t != null);
+  for (const t of allTargets) { lo = Math.min(lo, t); hi = Math.max(hi, t); }
   const pad = (hi - lo) * 0.18 || 1;
   const yMin = lo - pad;
   const yMax = hi + pad;
@@ -37,7 +39,6 @@ export default function WeightChart({ data, target }) {
   const area = `${line} L${pts[pts.length - 1].cx.toFixed(1)},${(padT + innerH).toFixed(1)} L${pts[0].cx.toFixed(1)},${(padT + innerH).toFixed(1)} Z`;
 
   const active = sel != null && pts[sel] ? pts[sel] : pts[pts.length - 1];
-  const ty = target != null ? y(target) : null;
 
   const fmtDay = ds => { const d = new Date(ds); return `${d.getDate()} ${MONTHS[d.getMonth()]}`; };
 
@@ -59,11 +60,19 @@ export default function WeightChart({ data, target }) {
       <text x={W - padR + 6} y={padT + 4} fill={C.faint} fontSize="9">{Math.round(yMax)}</text>
       <text x={W - padR + 6} y={padT + innerH + 3} fill={C.faint} fontSize="9">{Math.round(yMin)}</text>
 
-      {/* target line */}
-      {ty != null && (
+      {/* previous targets (grey) */}
+      {prevTargets.map((t, i) => (
+        <g key={`pt-${i}`}>
+          <line x1={padL} y1={y(t)} x2={padL + innerW} y2={y(t)} stroke={C.faint} strokeWidth="1" strokeDasharray="2 5" opacity="0.6" />
+          <text x={W - padR + 6} y={y(t) + 3} fill={C.faint} fontSize="9">{t}</text>
+        </g>
+      ))}
+
+      {/* current target (green) */}
+      {target != null && (
         <g>
-          <line x1={padL} y1={ty} x2={padL + innerW} y2={ty} stroke={C.positive} strokeWidth="1.25" strokeDasharray="3 4" opacity="0.85" />
-          <text x={W - padR + 6} y={ty + 3} fill={C.positive} fontSize="9" fontWeight="600">{target}</text>
+          <line x1={padL} y1={y(target)} x2={padL + innerW} y2={y(target)} stroke={C.positive} strokeWidth="1.25" strokeDasharray="3 4" opacity="0.9" />
+          <text x={W - padR + 6} y={y(target) + 3} fill={C.positive} fontSize="9" fontWeight="600">{target}</text>
         </g>
       )}
 

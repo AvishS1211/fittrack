@@ -3,7 +3,8 @@ import { C, MONTHS, todayStr } from "./theme";
 import WeightChart from "./WeightChart";
 
 const LS_WEIGHTS = "tuka_weights";
-const LS_TARGET = "tuka_target";
+const LS_TARGETS = "tuka_targets";
+const LS_TARGET_OLD = "tuka_target"; // pre-history single value (migrated on load)
 
 const RANGES = [
   { id: "1M", label: "1M", days: 31 },
@@ -16,6 +17,14 @@ const RANGES = [
 const load = (key, fallback) => {
   try { const v = localStorage.getItem(key); return v == null ? fallback : JSON.parse(v); }
   catch { return fallback; }
+};
+
+// Targets are kept as a chronological history [{ id, value }]; the last is current.
+const loadTargets = () => {
+  const arr = load(LS_TARGETS, null);
+  if (Array.isArray(arr)) return arr;
+  const old = load(LS_TARGET_OLD, null); // migrate legacy single target
+  return old != null ? [{ id: Date.now(), value: old }] : [];
 };
 
 function fmtDate(ds) { const d = new Date(ds); return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`; }
@@ -38,17 +47,21 @@ function Metric({ value, unit, size = 52, color = C.text }) {
 
 export default function TukaApp() {
   const [weights, setWeights] = useState(() => load(LS_WEIGHTS, []));
-  const [target, setTarget] = useState(() => load(LS_TARGET, null));
+  const [targets, setTargets] = useState(loadTargets);
   const [range, setRange] = useState("6M");
   const [wInput, setWInput] = useState("");
   const [dInput, setDInput] = useState(todayStr());
-  const [tInput, setTInput] = useState(target != null ? String(target) : "");
+  const [tInput, setTInput] = useState("");
+  const [showTarget, setShowTarget] = useState(false);
   const [toast, setToast] = useState(null);
 
   useEffect(() => { localStorage.setItem(LS_WEIGHTS, JSON.stringify(weights)); }, [weights]);
-  useEffect(() => { localStorage.setItem(LS_TARGET, JSON.stringify(target)); }, [target]);
+  useEffect(() => { localStorage.setItem(LS_TARGETS, JSON.stringify(targets)); }, [targets]);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2200); };
+
+  const target = targets.length ? targets[targets.length - 1].value : null;        // current goal
+  const prevTargets = targets.slice(0, -1).slice(-2).map(t => t.value).reverse();   // up to 2 prior
 
   const sorted = [...weights].sort((a, b) => a.date.localeCompare(b.date));
   const latest = sorted[sorted.length - 1] || null;
@@ -86,12 +99,17 @@ export default function TukaApp() {
   };
   const removeWeight = (id) => setWeights(prev => prev.filter(w => w.id !== id));
 
+  const openTarget = () => { setTInput(target != null ? String(target) : ""); setShowTarget(true); };
   const saveTarget = () => {
     const t = parseFloat(tInput);
-    if (!t || t <= 0) { setTarget(null); showToast("Target cleared"); return; }
-    setTarget(Math.round(t * 10) / 10);
+    if (!t || t <= 0) { showToast("Enter a target"); return; }
+    const value = Math.round(t * 10) / 10;
+    if (value === target) { setShowTarget(false); return; }
+    setTargets(prev => [...prev, { id: Date.now(), value }]);
+    setShowTarget(false);
     showToast("Target set");
   };
+  const removeTarget = () => { setTargets(prev => prev.slice(0, -1)); setShowTarget(false); showToast("Target removed"); };
 
   const input = {
     background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 12,
@@ -107,16 +125,17 @@ export default function TukaApp() {
         input { outline: none; }
         input[type=date] { color-scheme: dark; }
         @keyframes tukaIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+        @keyframes tukaPop { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
       `}</style>
 
       {toast && (
-        <div style={{ position: "fixed", top: 18, left: "50%", transform: "translateX(-50%)", zIndex: 99, background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 999, padding: "9px 18px", fontSize: 13, color: C.text, backdropFilter: "blur(12px)" }}>
+        <div style={{ position: "fixed", top: "calc(env(safe-area-inset-top) + 14px)", left: "50%", transform: "translateX(-50%)", zIndex: 99, background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 999, padding: "9px 18px", fontSize: 13, color: C.text, backdropFilter: "blur(12px)" }}>
           {toast}
         </div>
       )}
 
-      {/* Header */}
-      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "30px 2px 22px" }}>
+      {/* Header — note the safe-area top padding so it clears the notch */}
+      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "calc(env(safe-area-inset-top) + 26px) 2px 22px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
           <img src="/tuka-icon.png" alt="" width={34} height={34} style={{ borderRadius: 9 }} />
           <div>
@@ -124,7 +143,14 @@ export default function TukaApp() {
             <div style={{ fontSize: 11, color: C.faint, marginTop: 1 }}>Know where you're <em>going</em>.</div>
           </div>
         </div>
-        <div style={{ fontSize: 11, color: C.faint, textAlign: "right" }}>{new Date().toDateString()}</div>
+        <button onClick={openTarget} aria-label="Set target" style={{
+          display: "flex", alignItems: "center", gap: 6, cursor: "pointer",
+          background: C.surface, border: `1px solid ${C.border}`, borderRadius: 999,
+          padding: target != null ? "7px 13px 7px 11px" : "8px 11px", color: C.text, fontFamily: "inherit",
+        }}>
+          <span style={{ fontSize: 15, lineHeight: 1 }}>🎯</span>
+          {target != null && <span style={{ fontSize: 12, fontWeight: 600 }}>{target}<span style={{ fontSize: 9, fontStyle: "italic", color: C.muted }}> kg</span></span>}
+        </button>
       </header>
 
       <main style={{ display: "flex", flexDirection: "column", gap: 14, animation: "tukaIn 0.4s ease" }}>
@@ -165,9 +191,14 @@ export default function TukaApp() {
         <Card>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
             <Eyebrow>Trend</Eyebrow>
-            {target != null && <div style={{ fontSize: 11, color: C.positive }}>— — target {target} kg</div>}
+            {target != null && (
+              <div style={{ display: "flex", gap: 12, fontSize: 11 }}>
+                <span style={{ color: C.positive }}>— target {target}</span>
+                {prevTargets.length > 0 && <span style={{ color: C.faint }}>— past</span>}
+              </div>
+            )}
           </div>
-          <WeightChart data={series} target={target} />
+          <WeightChart data={series} target={target} prevTargets={prevTargets} />
           <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
             {RANGES.map(r => (
               <button key={r.id} onClick={() => setRange(r.id)} style={{
@@ -194,22 +225,6 @@ export default function TukaApp() {
             width: "100%", marginTop: 12, padding: "13px", borderRadius: 999, border: "none", cursor: "pointer",
             background: C.text, color: C.bg, fontSize: 14, fontWeight: 600, fontFamily: "inherit",
           }}>Log weight</button>
-        </Card>
-
-        {/* Target */}
-        <Card>
-          <Eyebrow>Target weight</Eyebrow>
-          <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-            <input type="number" inputMode="decimal" value={tInput} placeholder="e.g. 75"
-              onChange={e => setTInput(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && saveTarget()}
-              style={{ ...input, flex: 1, fontSize: 18, fontWeight: 600 }} />
-            <button onClick={saveTarget} style={{
-              padding: "0 22px", borderRadius: 12, border: `1px solid ${C.border}`, cursor: "pointer",
-              background: C.surface2, color: C.text, fontSize: 14, fontWeight: 600, fontFamily: "inherit",
-            }}>Set</button>
-          </div>
-          <div style={{ fontSize: 12, color: C.faint, marginTop: 10 }}>Shown as the dashed line on your trend. Clear it by setting 0.</div>
         </Card>
 
         {/* History */}
@@ -243,6 +258,45 @@ export default function TukaApp() {
           Stored privately on this device.
         </div>
       </main>
+
+      {/* Target popup */}
+      {showTarget && (
+        <div onClick={() => setShowTarget(false)} style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 480, background: C.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, border: `1px solid ${C.border}`, padding: "24px 20px calc(env(safe-area-inset-bottom) + 24px)", animation: "tukaPop 0.25s ease" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <Eyebrow>Target weight</Eyebrow>
+              <button onClick={() => setShowTarget(false)} style={{ background: "transparent", border: "none", color: C.faint, cursor: "pointer", fontSize: 16 }}>✕</button>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <input autoFocus type="number" inputMode="decimal" value={tInput} placeholder="e.g. 75"
+                onChange={e => setTInput(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && saveTarget()}
+                style={{ ...input, flex: 1, fontSize: 20, fontWeight: 600 }} />
+              <button onClick={saveTarget} style={{
+                padding: "0 26px", borderRadius: 12, border: "none", cursor: "pointer",
+                background: C.text, color: C.bg, fontSize: 15, fontWeight: 600, fontFamily: "inherit",
+              }}>Save</button>
+            </div>
+            <div style={{ fontSize: 12, color: C.faint, marginTop: 12 }}>Shown as the green dashed line on your trend. Your last two targets stay on the chart in grey.</div>
+
+            {targets.length > 0 && (
+              <div style={{ marginTop: 18 }}>
+                <div style={{ fontSize: 10, color: C.faint, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Recent targets</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {[...targets].reverse().slice(0, 3).map((t, i) => (
+                    <div key={t.id} style={{ fontSize: 13, fontWeight: 600, padding: "6px 12px", borderRadius: 999, background: C.surface2, border: `1px solid ${i === 0 ? C.positive + "66" : C.border}`, color: i === 0 ? C.positive : C.muted }}>
+                      {t.value}<span style={{ fontSize: 10, fontStyle: "italic" }}> kg</span>{i === 0 ? " · now" : ""}
+                    </div>
+                  ))}
+                </div>
+                <button onClick={removeTarget} style={{ marginTop: 14, background: "transparent", border: "none", color: C.warning, cursor: "pointer", fontSize: 12, fontFamily: "inherit", padding: 0 }}>
+                  Remove current target
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
