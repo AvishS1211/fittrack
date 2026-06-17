@@ -138,6 +138,7 @@ export default function TukaApp() {
         input[type=date] { color-scheme: dark; }
         @keyframes tukaIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
         @keyframes tukaPop { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
+        @keyframes tukaSheet { from { transform: translateY(100%); } to { transform: translateY(0); } }
       `}</style>
 
       {toast && (
@@ -158,7 +159,7 @@ export default function TukaApp() {
             width: 48, height: 48, borderRadius: "50%", padding: 0,
             background: C.surface, border: `1px solid ${C.border}`,
           }}>
-            <img src="/history.png" alt="" width={22} height={22} />
+            <img src="/weigher.png" alt="" width={22} height={22} />
           </button>
           <button onClick={openTarget} aria-label="Set target" style={{
             display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
@@ -288,10 +289,10 @@ export default function TukaApp() {
         </div>
       )}
 
-      {/* History popup */}
+      {/* History popup — bottom sheet */}
       {showHistory && (
-        <div onClick={() => setShowHistory(false)} style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 420, maxHeight: "80vh", display: "flex", flexDirection: "column", background: C.surface, borderRadius: 24, border: `1px solid ${C.border}`, padding: 24, animation: "tukaPop 0.25s ease" }}>
+        <div onClick={() => setShowHistory(false)} style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 480, maxHeight: "80vh", display: "flex", flexDirection: "column", background: C.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, border: `1px solid ${C.border}`, padding: "24px 20px calc(env(safe-area-inset-bottom) + 24px)", animation: "tukaSheet 0.28s cubic-bezier(0.22,1,0.36,1)" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
               <Eyebrow>Weight history</Eyebrow>
               <button onClick={() => setShowHistory(false)} style={{ background: "transparent", border: "none", color: C.faint, cursor: "pointer", fontSize: 16 }}>✕</button>
@@ -314,7 +315,9 @@ export default function TukaApp() {
                           {diff > 0 ? "+" : ""}{diff.toFixed(1)}
                         </div>
                       )}
-                      <button onClick={() => removeWeight(w.id)} style={{ background: "transparent", border: "none", color: C.faint, cursor: "pointer", fontSize: 14, width: 26 }}>✕</button>
+                      <button onClick={() => removeWeight(w.id)} aria-label="Delete" style={{ background: "transparent", border: "none", cursor: "pointer", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <img src="/trash.png" alt="" width={18} height={18} style={{ opacity: 0.65 }} />
+                      </button>
                     </div>
                   );
                 })}
