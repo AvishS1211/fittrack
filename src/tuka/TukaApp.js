@@ -149,18 +149,14 @@ export default function TukaApp() {
       <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "calc(env(safe-area-inset-top) + 26px) 2px 22px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
           <img src="/tuka-icon.png" alt="" width={34} height={34} style={{ borderRadius: 9 }} />
-          <div>
-            <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.02em" }}>tuka</div>
-            <div style={{ fontSize: 11, color: C.faint, marginTop: 1 }}>Know where you're <em>going</em>.</div>
-          </div>
+          <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.02em" }}>tuka</div>
         </div>
         <button onClick={openTarget} aria-label="Set target" style={{
-          display: "flex", alignItems: "center", gap: 6, cursor: "pointer",
-          background: C.surface, border: `1px solid ${C.border}`, borderRadius: 999,
-          padding: target != null ? "7px 13px 7px 11px" : "8px 11px", color: C.text, fontFamily: "inherit",
+          display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+          width: 48, height: 48, borderRadius: "50%", padding: 0,
+          background: C.surface, border: `1px solid ${C.border}`,
         }}>
-          <span style={{ fontSize: 15, lineHeight: 1 }}>🎯</span>
-          {target != null && <span style={{ fontSize: 12, fontWeight: 600 }}>{target}<span style={{ fontSize: 9, fontStyle: "italic", color: C.muted }}> kg</span></span>}
+          <img src="/target.png" alt="" width={22} height={22} />
         </button>
       </header>
 
@@ -233,7 +229,7 @@ export default function TukaApp() {
             <input type="date" value={dInput} onChange={e => setDInput(e.target.value)} style={{ ...input, flex: 1.1, fontSize: 13 }} />
           </div>
           <button onClick={logWeight} style={{
-            width: "100%", marginTop: 12, padding: "13px", borderRadius: 999, border: "none", cursor: "pointer",
+            width: "100%", marginTop: 12, padding: "14px", borderRadius: 20, border: "none", cursor: "pointer",
             background: C.text, color: C.bg, fontSize: 14, fontWeight: 600, fontFamily: "inherit",
           }}>Log weight</button>
         </Card>
