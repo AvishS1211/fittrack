@@ -65,6 +65,12 @@ function finish(widget) {
 
 const w = new ListWidget();
 w.backgroundColor = new Color(C.bg);
+const bgGradient = new LinearGradient();
+bgGradient.colors = [new Color("#1E1E20"), new Color(C.bg)];
+bgGradient.locations = [0, 1];
+bgGradient.startPoint = new Point(0, 0);   // top-left, lifted
+bgGradient.endPoint = new Point(1, 1);     // bottom-right, near-black
+w.backgroundGradient = bgGradient;
 w.setPadding(16, 18, 16, 18);
 
 let weights = [];
