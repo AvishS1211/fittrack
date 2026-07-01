@@ -337,7 +337,7 @@ export default function TukaApp() {
               width: 48, height: 48, borderRadius: "50%", padding: 0,
               background: C.surface, border: `1px solid ${C.border}`,
             }}>
-              <img src="/history.png" alt="" width={22} height={22} />
+              <img src="/chart.png" alt="" width={22} height={22} />
             </button>
             <button onClick={openTarget} aria-label="Set target" style={{
               display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
