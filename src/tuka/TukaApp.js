@@ -3,6 +3,7 @@ import { C, MONTHS, todayStr } from "./theme";
 import { supabase } from "./supabaseClient";
 import WeightChart from "./WeightChart";
 import { SPLIT_BY_DAY, DAY_LABELS, WEEK_ORDER, WORKOUTS } from "./workoutPlan";
+import { DIET } from "./dietPlan";
 
 const RANGES = [
   { id: "1M", label: "1M", days: 31 },
@@ -30,7 +31,161 @@ function Metric({ value, unit, size = 52, color = C.text }) {
   );
 }
 
+// ── Workout page (day-wise PPL split) ──
+function WorkoutPage({ workoutDay, setWorkoutDay }) {
+  const type = SPLIT_BY_DAY[workoutDay];
+  const plan = WORKOUTS[type];
+  const todayDow = new Date().getDay();
+  return (
+    <div key="workout" style={{ display: "flex", flexDirection: "column", gap: 14, animation: "tukaIn 0.35s ease" }}>
+      <Card>
+        <Eyebrow>Workout plan</Eyebrow>
+        <div style={{ display: "flex", gap: 6, marginTop: 14 }}>
+          {WEEK_ORDER.map(dow => {
+            const active = dow === workoutDay;
+            const isToday = dow === todayDow;
+            return (
+              <button key={dow} onClick={() => setWorkoutDay(dow)} style={{
+                flex: 1, padding: "8px 0", borderRadius: 10, border: `1px solid ${active ? C.text : C.border}`,
+                background: active ? C.text : "transparent", color: active ? C.bg : (isToday ? C.text : C.faint),
+                fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+              }}>{DAY_LABELS[dow][0]}</button>
+            );
+          })}
+        </div>
+        <div style={{ marginTop: 18 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+            <span style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em" }}>{type === "Rest" ? "Rest day" : type}</span>
+            {workoutDay === todayDow && <span style={{ fontSize: 11, color: C.positive, fontWeight: 600 }}>· today</span>}
+          </div>
+          {plan && <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>{plan.subtitle}</div>}
+        </div>
+      </Card>
+
+      {!plan ? (
+        <Card style={{ padding: "48px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+          <img src="/dumbbell.png" alt="" width={28} height={28} style={{ opacity: 0.4 }} />
+          <div style={{ fontSize: 13, color: C.faint }}>Recovery day — no lifting.</div>
+        </Card>
+      ) : (
+        <Card>
+          {plan.exercises.map((ex, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "13px 0", borderBottom: i < plan.exercises.length - 1 ? `1px solid ${C.border}` : "none" }}>
+              <div style={{ width: 22, fontSize: 12, fontWeight: 700, color: C.faint, paddingTop: 2 }}>{i + 1}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 15, fontWeight: 600 }}>{ex.name}</span>
+                  {ex.tag && <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.muted, border: `1px solid ${C.border}`, borderRadius: 999, padding: "2px 7px" }}>{ex.tag}</span>}
+                </div>
+                {ex.note && <div style={{ fontSize: 11, color: C.faint, marginTop: 3 }}>{ex.note}</div>}
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: C.text, whiteSpace: "nowrap", paddingTop: 1 }}>{ex.sets}</div>
+            </div>
+          ))}
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ── Diet page (calorie + macro targets) ──
+function DietPage() {
+  const total = DIET.calories;
+  const numColor = { Protein: C.positive, Carbs: C.text, Fat: C.warning };
+  const barColor = { Protein: C.positive, Carbs: C.muted, Fat: C.warning };
+  return (
+    <div key="diet" style={{ display: "flex", flexDirection: "column", gap: 14, animation: "tukaIn 0.35s ease" }}>
+      <Card style={{ padding: 22 }}>
+        <Eyebrow>Daily target</Eyebrow>
+        <div style={{ marginTop: 12 }}>
+          <Metric value={total.toLocaleString()} unit="kcal" />
+        </div>
+        <div style={{ fontSize: 13, color: C.muted, marginTop: 14 }}>{DIET.note}</div>
+      </Card>
+
+      <Card>
+        <Eyebrow>Macros</Eyebrow>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 14 }}>
+          {DIET.macros.map(m => {
+            const kcal = m.grams * m.kcalPerG;
+            const pct = Math.round((kcal / total) * 100);
+            return (
+              <div key={m.key} style={{ background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 16, padding: "16px 8px", textAlign: "center" }}>
+                <div style={{ fontSize: 26, fontWeight: 700, color: numColor[m.key], letterSpacing: "-0.02em" }}>
+                  {m.grams}<span style={{ fontSize: 11, fontStyle: "italic", color: C.muted }}> g</span>
+                </div>
+                <div style={{ fontSize: 10, color: C.faint, letterSpacing: "0.08em", textTransform: "uppercase", marginTop: 5 }}>{m.key}</div>
+                <div style={{ fontSize: 10, color: C.faint, marginTop: 6 }}>{kcal} kcal · {pct}%</div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* proportion bar */}
+        <div style={{ display: "flex", height: 8, borderRadius: 999, overflow: "hidden", marginTop: 16 }}>
+          {DIET.macros.map(m => (
+            <div key={m.key} style={{ flex: m.grams * m.kcalPerG, background: barColor[m.key] }} />
+          ))}
+        </div>
+
+        <div style={{ fontSize: 11, color: C.faint, marginTop: 14, lineHeight: 1.5 }}>{DIET.derivedNote}</div>
+      </Card>
+
+      <Card>
+        <Eyebrow>Key rule</Eyebrow>
+        <div style={{ fontSize: 14, color: C.text, marginTop: 10 }}>{DIET.perMeal}</div>
+      </Card>
+    </div>
+  );
+}
+
+// ── Liquid-glass bottom navigation ──
+function BottomNav({ view, setView }) {
+  const tabs = [
+    { id: "weight", icon: "/weigher.png" },
+    { id: "workout", icon: "/dumbbell.png" },
+    { id: "diet", icon: "/diet.png" },
+  ];
+  return (
+    <div style={{ position: "fixed", left: 0, right: 0, bottom: "calc(env(safe-area-inset-bottom) + 18px)", display: "flex", justifyContent: "center", zIndex: 150, pointerEvents: "none" }}>
+      <div style={{
+        display: "flex", gap: 6, alignItems: "center", padding: 7,
+        background: "rgba(28,28,30,0.55)",
+        backdropFilter: "blur(24px) saturate(180%)",
+        WebkitBackdropFilter: "blur(24px) saturate(180%)",
+        border: "1px solid rgba(255,255,255,0.14)",
+        borderRadius: 999,
+        boxShadow: "0 12px 34px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.14)",
+        pointerEvents: "auto",
+      }}>
+        {tabs.map(t => {
+          const active = view === t.id;
+          return (
+            <button key={t.id} onClick={() => setView(t.id)} aria-label={t.id} style={{
+              position: "relative", width: 62, height: 52, borderRadius: 999, border: "none", cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", background: "transparent",
+              WebkitTapHighlightColor: "transparent",
+            }}>
+              {active && (
+                <span style={{
+                  position: "absolute", inset: 0, borderRadius: 999, pointerEvents: "none",
+                  background: "linear-gradient(180deg, rgba(255,255,255,0.28), rgba(255,255,255,0.06))",
+                  border: "1px solid rgba(255,255,255,0.22)",
+                  boxShadow: "inset 0 1px 1px rgba(255,255,255,0.5), 0 3px 10px rgba(0,0,0,0.35)",
+                  backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
+                }} />
+              )}
+              <img src={t.icon} alt="" width={24} height={24} style={{ position: "relative", opacity: active ? 1 : 0.5, transition: "opacity 0.2s" }} />
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function TukaApp() {
+  const [view, setView] = useState("weight"); // weight | workout | diet
   const [weights, setWeights] = useState([]);
   const [targets, setTargets] = useState([]);
   const [range, setRange] = useState("6M");
@@ -39,7 +194,6 @@ export default function TukaApp() {
   const [tInput, setTInput] = useState("");
   const [showTarget, setShowTarget] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [showWorkout, setShowWorkout] = useState(false);
   const [workoutDay, setWorkoutDay] = useState(new Date().getDay()); // 0=Sun..6=Sat
   const [refreshing, setRefreshing] = useState(false);
   const [toast, setToast] = useState(null);
@@ -151,7 +305,7 @@ export default function TukaApp() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'Inter', -apple-system, system-ui, sans-serif", maxWidth: 480, margin: "0 auto", padding: "0 16px 56px", position: "relative", WebkitFontSmoothing: "antialiased" }}>
+    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'Inter', -apple-system, system-ui, sans-serif", maxWidth: 480, margin: "0 auto", padding: "0 16px calc(env(safe-area-inset-bottom) + 104px)", position: "relative", WebkitFontSmoothing: "antialiased" }}>
       <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400..700;1,14..32,400..600&display=swap" rel="stylesheet" />
       <style>{`
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -171,114 +325,113 @@ export default function TukaApp() {
       )}
 
       {/* Header — note the safe-area top padding so it clears the notch */}
-      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "calc(env(safe-area-inset-top) + 26px) 2px 22px" }}>
+      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "calc(env(safe-area-inset-top) + 26px) 2px 22px", minHeight: 96 }}>
         <div role="button" aria-label="Refresh app" onClick={forceRefresh} title="Tap to update to the latest version" style={{ display: "flex", alignItems: "center", gap: 11, cursor: "pointer", WebkitTapHighlightColor: "transparent" }}>
           <img src="/tuka-icon.png" alt="" width={34} height={34} style={{ borderRadius: 9, animation: refreshing ? "tukaSpin 0.8s linear infinite" : "none" }} />
           <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.02em" }}>tuka</div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={() => setShowHistory(true)} aria-label="Weight history" style={{
-            display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
-            width: 48, height: 48, borderRadius: "50%", padding: 0,
-            background: C.surface, border: `1px solid ${C.border}`,
-          }}>
-            <img src="/weigher.png" alt="" width={22} height={22} />
-          </button>
-          <button onClick={() => { setWorkoutDay(new Date().getDay()); setShowWorkout(true); }} aria-label="Workout plan" style={{
-            display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
-            width: 48, height: 48, borderRadius: "50%", padding: 0,
-            background: C.surface, border: `1px solid ${C.border}`,
-          }}>
-            <img src="/dumbbell.png" alt="" width={22} height={22} />
-          </button>
-          <button onClick={openTarget} aria-label="Set target" style={{
-            display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
-            width: 48, height: 48, borderRadius: "50%", padding: 0,
-            background: C.surface, border: `1px solid ${C.border}`,
-          }}>
-            <img src="/target.png" alt="" width={22} height={22} />
-          </button>
-        </div>
+        {view === "weight" && (
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button onClick={() => setShowHistory(true)} aria-label="Weight history" style={{
+              display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+              width: 48, height: 48, borderRadius: "50%", padding: 0,
+              background: C.surface, border: `1px solid ${C.border}`,
+            }}>
+              <img src="/history.png" alt="" width={22} height={22} />
+            </button>
+            <button onClick={openTarget} aria-label="Set target" style={{
+              display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+              width: 48, height: 48, borderRadius: "50%", padding: 0,
+              background: C.surface, border: `1px solid ${C.border}`,
+            }}>
+              <img src="/target.png" alt="" width={22} height={22} />
+            </button>
+          </div>
+        )}
       </header>
 
-      <main style={{ display: "flex", flexDirection: "column", gap: 14, animation: "tukaIn 0.4s ease" }}>
-
-        {/* Hero — current weight */}
-        <Card style={{ padding: 22 }}>
-          <Eyebrow>Current</Eyebrow>
-          <div style={{ marginTop: 12 }}>
-            <Metric value={latest ? latest.kg : "—"} unit="kg" />
-          </div>
-          <div style={{ display: "flex", gap: 18, marginTop: 16, flexWrap: "wrap" }}>
-            <div>
-              <div style={{ fontSize: 11, color: C.faint }}>{range} change</div>
-              <div style={{ fontSize: 15, fontWeight: 600, color: series.length > 1 ? trendColor : C.muted, marginTop: 3 }}>
-                {series.length > 1 ? `${rangeChange > 0 ? "↑" : rangeChange < 0 ? "↓" : ""} ${Math.abs(rangeChange).toFixed(1)} kg` : "—"}
-              </div>
+      {/* ── WEIGHT ── */}
+      {view === "weight" && (
+        <main key="weight" style={{ display: "flex", flexDirection: "column", gap: 14, animation: "tukaIn 0.35s ease" }}>
+          {/* Hero — current weight */}
+          <Card style={{ padding: 22 }}>
+            <Eyebrow>Current</Eyebrow>
+            <div style={{ marginTop: 12 }}>
+              <Metric value={latest ? latest.kg : "—"} unit="kg" />
             </div>
-            {toGo != null && (
+            <div style={{ display: "flex", gap: 18, marginTop: 16, flexWrap: "wrap" }}>
               <div>
-                <div style={{ fontSize: 11, color: C.faint }}>To target</div>
-                <div style={{ fontSize: 15, fontWeight: 600, color: Math.abs(toGo) < 0.1 ? C.positive : C.text, marginTop: 3 }}>
-                  {Math.abs(toGo) < 0.1 ? "Reached 🎯" : `${Math.abs(toGo).toFixed(1)} kg to ${toGo > 0 ? "lose" : "gain"}`}
+                <div style={{ fontSize: 11, color: C.faint }}>{range} change</div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: series.length > 1 ? trendColor : C.muted, marginTop: 3 }}>
+                  {series.length > 1 ? `${rangeChange > 0 ? "↑" : rangeChange < 0 ? "↓" : ""} ${Math.abs(rangeChange).toFixed(1)} kg` : "—"}
                 </div>
               </div>
-            )}
-            {first && (
-              <div>
-                <div style={{ fontSize: 11, color: C.faint }}>Since start</div>
-                <div style={{ fontSize: 15, fontWeight: 600, color: C.muted, marginTop: 3 }}>
-                  {(Number(latest.kg) - Number(first.kg) > 0 ? "↑ " : Number(latest.kg) - Number(first.kg) < 0 ? "↓ " : "") + Math.abs(Number(latest.kg) - Number(first.kg)).toFixed(1)} kg
+              {toGo != null && (
+                <div>
+                  <div style={{ fontSize: 11, color: C.faint }}>To target</div>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: Math.abs(toGo) < 0.1 ? C.positive : C.text, marginTop: 3 }}>
+                    {Math.abs(toGo) < 0.1 ? "Reached 🎯" : `${Math.abs(toGo).toFixed(1)} kg to ${toGo > 0 ? "lose" : "gain"}`}
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
-        </Card>
+              )}
+              {first && (
+                <div>
+                  <div style={{ fontSize: 11, color: C.faint }}>Since start</div>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: C.muted, marginTop: 3 }}>
+                    {(Number(latest.kg) - Number(first.kg) > 0 ? "↑ " : Number(latest.kg) - Number(first.kg) < 0 ? "↓ " : "") + Math.abs(Number(latest.kg) - Number(first.kg)).toFixed(1)} kg
+                  </div>
+                </div>
+              )}
+            </div>
+          </Card>
 
-        {/* Chart */}
-        <Card>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-            <Eyebrow>Trend</Eyebrow>
-            {target != null && (
-              <div style={{ display: "flex", gap: 12, fontSize: 11 }}>
-                <span style={{ color: C.positive }}>— target {target}</span>
-                {prevTargets.length > 0 && <span style={{ color: C.faint }}>— past</span>}
-              </div>
-            )}
-          </div>
-          <WeightChart data={series} target={target} prevTargets={prevTargets} />
-          <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
-            {RANGES.map(r => (
-              <button key={r.id} onClick={() => setRange(r.id)} style={{
-                flex: 1, padding: "7px 0", borderRadius: 9, fontSize: 11, fontWeight: 600, fontFamily: "inherit",
-                cursor: "pointer", border: "none",
-                background: range === r.id ? C.surface2 : "transparent",
-                color: range === r.id ? C.text : C.faint,
-              }}>{r.label}</button>
-            ))}
-          </div>
-        </Card>
+          {/* Chart */}
+          <Card>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+              <Eyebrow>Trend</Eyebrow>
+              {target != null && (
+                <div style={{ display: "flex", gap: 12, fontSize: 11 }}>
+                  <span style={{ color: C.positive }}>— target {target}</span>
+                  {prevTargets.length > 0 && <span style={{ color: C.faint }}>— past</span>}
+                </div>
+              )}
+            </div>
+            <WeightChart data={series} target={target} prevTargets={prevTargets} />
+            <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
+              {RANGES.map(r => (
+                <button key={r.id} onClick={() => setRange(r.id)} style={{
+                  flex: 1, padding: "7px 0", borderRadius: 9, fontSize: 11, fontWeight: 600, fontFamily: "inherit",
+                  cursor: "pointer", border: "none",
+                  background: range === r.id ? C.surface2 : "transparent",
+                  color: range === r.id ? C.text : C.faint,
+                }}>{r.label}</button>
+              ))}
+            </div>
+          </Card>
 
-        {/* Log weight */}
-        <Card>
-          <Eyebrow>Log a weigh-in</Eyebrow>
-          <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-            <input type="number" inputMode="decimal" value={wInput} placeholder="weight"
-              onChange={e => setWInput(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && logWeight()}
-              style={{ ...input, flex: 1, fontSize: 18, fontWeight: 600 }} />
-            <input type="date" value={dInput} onChange={e => setDInput(e.target.value)} style={{ ...input, flex: 1.1, fontSize: 13 }} />
-          </div>
-          <button onClick={logWeight} style={{
-            width: "100%", marginTop: 12, padding: "14px", borderRadius: 20, border: "none", cursor: "pointer",
-            background: C.text, color: C.bg, fontSize: 14, fontWeight: 600, fontFamily: "inherit",
-          }}>Log weight</button>
-        </Card>
+          {/* Log weight */}
+          <Card>
+            <Eyebrow>Log a weigh-in</Eyebrow>
+            <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+              <input type="number" inputMode="decimal" value={wInput} placeholder="weight"
+                onChange={e => setWInput(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && logWeight()}
+                style={{ ...input, flex: 1, fontSize: 18, fontWeight: 600 }} />
+              <input type="date" value={dInput} onChange={e => setDInput(e.target.value)} style={{ ...input, flex: 1.1, fontSize: 13 }} />
+            </div>
+            <button onClick={logWeight} style={{
+              width: "100%", marginTop: 12, padding: "14px", borderRadius: 20, border: "none", cursor: "pointer",
+              background: C.text, color: C.bg, fontSize: 14, fontWeight: 600, fontFamily: "inherit",
+            }}>Log weight</button>
+          </Card>
+        </main>
+      )}
 
-        <div style={{ textAlign: "center", fontSize: 11, color: C.faint, paddingTop: 6 }}>
-          Synced across your devices.
-        </div>
-      </main>
+      {/* ── WORKOUT ── */}
+      {view === "workout" && <WorkoutPage workoutDay={workoutDay} setWorkoutDay={setWorkoutDay} />}
+
+      {/* ── DIET ── */}
+      {view === "diet" && <DietPage />}
 
       {/* Target popup */}
       {showTarget && (
@@ -357,69 +510,7 @@ export default function TukaApp() {
         </div>
       )}
 
-      {/* Workout plan popup — bottom sheet */}
-      {showWorkout && (() => {
-        const type = SPLIT_BY_DAY[workoutDay];
-        const plan = WORKOUTS[type];
-        return (
-          <div onClick={() => setShowWorkout(false)} style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-            <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 480, height: "82vh", display: "flex", flexDirection: "column", background: C.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, border: `1px solid ${C.border}`, padding: "24px 20px calc(env(safe-area-inset-bottom) + 20px)", animation: "tukaSheet 0.28s cubic-bezier(0.22,1,0.36,1)" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                <Eyebrow>Workout plan</Eyebrow>
-                <button onClick={() => setShowWorkout(false)} style={{ background: "transparent", border: "none", color: C.faint, cursor: "pointer", fontSize: 16 }}>✕</button>
-              </div>
-
-              {/* Day selector (Mon → Sun) */}
-              <div style={{ display: "flex", gap: 6 }}>
-                {WEEK_ORDER.map(dow => {
-                  const active = dow === workoutDay;
-                  const isToday = dow === new Date().getDay();
-                  return (
-                    <button key={dow} onClick={() => setWorkoutDay(dow)} style={{
-                      flex: 1, padding: "8px 0", borderRadius: 10, border: `1px solid ${active ? C.text : C.border}`,
-                      background: active ? C.text : "transparent", color: active ? C.bg : (isToday ? C.text : C.faint),
-                      fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-                    }}>{DAY_LABELS[dow][0]}</button>
-                  );
-                })}
-              </div>
-
-              {/* Selected day heading */}
-              <div style={{ marginTop: 18, marginBottom: 6 }}>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                  <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.02em" }}>{type === "Rest" ? "Rest day" : type}</span>
-                  {workoutDay === new Date().getDay() && <span style={{ fontSize: 11, color: C.positive, fontWeight: 600 }}>· today</span>}
-                </div>
-                {plan && <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>{plan.subtitle}</div>}
-              </div>
-
-              {/* Exercises */}
-              {!plan ? (
-                <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 8, color: C.faint }}>
-                  <img src="/dumbbell.png" alt="" width={26} height={26} style={{ opacity: 0.4 }} />
-                  <div style={{ fontSize: 13 }}>Recovery day — no lifting.</div>
-                </div>
-              ) : (
-                <div style={{ flex: 1, minHeight: 0, overflowY: "auto", marginTop: 6 }}>
-                  {plan.exercises.map((ex, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "13px 0", borderBottom: i < plan.exercises.length - 1 ? `1px solid ${C.border}` : "none" }}>
-                      <div style={{ width: 22, fontSize: 12, fontWeight: 700, color: C.faint, paddingTop: 2 }}>{i + 1}</div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                          <span style={{ fontSize: 15, fontWeight: 600 }}>{ex.name}</span>
-                          {ex.tag && <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.muted, border: `1px solid ${C.border}`, borderRadius: 999, padding: "2px 7px" }}>{ex.tag}</span>}
-                        </div>
-                        {ex.note && <div style={{ fontSize: 11, color: C.faint, marginTop: 3 }}>{ex.note}</div>}
-                      </div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: C.text, whiteSpace: "nowrap", paddingTop: 1 }}>{ex.sets}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })()}
+      <BottomNav view={view} setView={setView} />
     </div>
   );
 }
