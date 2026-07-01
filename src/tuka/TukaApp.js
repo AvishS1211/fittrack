@@ -41,6 +41,7 @@ export default function TukaApp() {
   const [showHistory, setShowHistory] = useState(false);
   const [showWorkout, setShowWorkout] = useState(false);
   const [workoutDay, setWorkoutDay] = useState(new Date().getDay()); // 0=Sun..6=Sat
+  const [refreshing, setRefreshing] = useState(false);
   const [toast, setToast] = useState(null);
 
   // Load everything from Supabase on mount.
@@ -54,6 +55,24 @@ export default function TukaApp() {
   }, []);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2200); };
+
+  // Tap the logo to pull the latest deploy without deleting/re-adding the PWA.
+  const forceRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    showToast("Updating…");
+    try {
+      if ("serviceWorker" in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(r => r.update()));
+      }
+      if (window.caches) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+      }
+    } catch {}
+    window.location.reload();
+  };
 
   const target = targets.length ? targets[targets.length - 1].value : null;        // current goal
   const prevTargets = targets.slice(0, -1).slice(-2).map(t => t.value).reverse();   // up to 2 prior
@@ -142,6 +161,7 @@ export default function TukaApp() {
         @keyframes tukaIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
         @keyframes tukaPop { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
         @keyframes tukaSheet { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        @keyframes tukaSpin { to { transform: rotate(360deg); } }
       `}</style>
 
       {toast && (
@@ -152,8 +172,8 @@ export default function TukaApp() {
 
       {/* Header — note the safe-area top padding so it clears the notch */}
       <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "calc(env(safe-area-inset-top) + 26px) 2px 22px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
-          <img src="/tuka-icon.png" alt="" width={34} height={34} style={{ borderRadius: 9 }} />
+        <div role="button" aria-label="Refresh app" onClick={forceRefresh} title="Tap to update to the latest version" style={{ display: "flex", alignItems: "center", gap: 11, cursor: "pointer", WebkitTapHighlightColor: "transparent" }}>
+          <img src="/tuka-icon.png" alt="" width={34} height={34} style={{ borderRadius: 9, animation: refreshing ? "tukaSpin 0.8s linear infinite" : "none" }} />
           <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.02em" }}>tuka</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
