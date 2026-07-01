@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { C, MONTHS, todayStr } from "./theme";
 import { supabase } from "./supabaseClient";
 import WeightChart from "./WeightChart";
+import { SPLIT_BY_DAY, DAY_LABELS, WEEK_ORDER, WORKOUTS } from "./workoutPlan";
 
 const RANGES = [
   { id: "1M", label: "1M", days: 31 },
@@ -38,6 +39,8 @@ export default function TukaApp() {
   const [tInput, setTInput] = useState("");
   const [showTarget, setShowTarget] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showWorkout, setShowWorkout] = useState(false);
+  const [workoutDay, setWorkoutDay] = useState(new Date().getDay()); // 0=Sun..6=Sat
   const [toast, setToast] = useState(null);
 
   // Load everything from Supabase on mount.
@@ -160,6 +163,13 @@ export default function TukaApp() {
             background: C.surface, border: `1px solid ${C.border}`,
           }}>
             <img src="/weigher.png" alt="" width={22} height={22} />
+          </button>
+          <button onClick={() => { setWorkoutDay(new Date().getDay()); setShowWorkout(true); }} aria-label="Workout plan" style={{
+            display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+            width: 48, height: 48, borderRadius: "50%", padding: 0,
+            background: C.surface, border: `1px solid ${C.border}`,
+          }}>
+            <img src="/dumbbell.png" alt="" width={22} height={22} />
           </button>
           <button onClick={openTarget} aria-label="Set target" style={{
             display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
@@ -326,6 +336,70 @@ export default function TukaApp() {
           </div>
         </div>
       )}
+
+      {/* Workout plan popup — bottom sheet */}
+      {showWorkout && (() => {
+        const type = SPLIT_BY_DAY[workoutDay];
+        const plan = WORKOUTS[type];
+        return (
+          <div onClick={() => setShowWorkout(false)} style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+            <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 480, height: "82vh", display: "flex", flexDirection: "column", background: C.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, border: `1px solid ${C.border}`, padding: "24px 20px calc(env(safe-area-inset-bottom) + 20px)", animation: "tukaSheet 0.28s cubic-bezier(0.22,1,0.36,1)" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                <Eyebrow>Workout plan</Eyebrow>
+                <button onClick={() => setShowWorkout(false)} style={{ background: "transparent", border: "none", color: C.faint, cursor: "pointer", fontSize: 16 }}>✕</button>
+              </div>
+
+              {/* Day selector (Mon → Sun) */}
+              <div style={{ display: "flex", gap: 6 }}>
+                {WEEK_ORDER.map(dow => {
+                  const active = dow === workoutDay;
+                  const isToday = dow === new Date().getDay();
+                  return (
+                    <button key={dow} onClick={() => setWorkoutDay(dow)} style={{
+                      flex: 1, padding: "8px 0", borderRadius: 10, border: `1px solid ${active ? C.text : C.border}`,
+                      background: active ? C.text : "transparent", color: active ? C.bg : (isToday ? C.text : C.faint),
+                      fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                    }}>{DAY_LABELS[dow][0]}</button>
+                  );
+                })}
+              </div>
+
+              {/* Selected day heading */}
+              <div style={{ marginTop: 18, marginBottom: 6 }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                  <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.02em" }}>{type === "Rest" ? "Rest day" : type}</span>
+                  {workoutDay === new Date().getDay() && <span style={{ fontSize: 11, color: C.positive, fontWeight: 600 }}>· today</span>}
+                </div>
+                {plan && <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>{plan.subtitle}</div>}
+              </div>
+
+              {/* Exercises */}
+              {!plan ? (
+                <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 8, color: C.faint }}>
+                  <img src="/dumbbell.png" alt="" width={26} height={26} style={{ opacity: 0.4 }} />
+                  <div style={{ fontSize: 13 }}>Recovery day — no lifting.</div>
+                </div>
+              ) : (
+                <div style={{ flex: 1, minHeight: 0, overflowY: "auto", marginTop: 6 }}>
+                  {plan.exercises.map((ex, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "13px 0", borderBottom: i < plan.exercises.length - 1 ? `1px solid ${C.border}` : "none" }}>
+                      <div style={{ width: 22, fontSize: 12, fontWeight: 700, color: C.faint, paddingTop: 2 }}>{i + 1}</div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                          <span style={{ fontSize: 15, fontWeight: 600 }}>{ex.name}</span>
+                          {ex.tag && <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.muted, border: `1px solid ${C.border}`, borderRadius: 999, padding: "2px 7px" }}>{ex.tag}</span>}
+                        </div>
+                        {ex.note && <div style={{ fontSize: 11, color: C.faint, marginTop: 3 }}>{ex.note}</div>}
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: C.text, whiteSpace: "nowrap", paddingTop: 1 }}>{ex.sets}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
