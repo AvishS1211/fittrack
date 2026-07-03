@@ -137,8 +137,18 @@ function DietPage() {
         <Eyebrow>Key rule</Eyebrow>
         <div style={{ fontSize: 14, color: C.text, marginTop: 10 }}>{DIET.perMeal}</div>
       </Card>
+    </div>
+  );
+}
 
-      {/* InBody key stats */}
+// ── Body composition page (BMR + segmental lean/fat) ──
+function BodyPage() {
+  const [mode, setMode] = useState("lean"); // lean | fat
+  const segs = mode === "lean" ? BODY.lean : BODY.fat;
+  const src = mode === "lean" ? "/lean.png" : "/fat.png";
+  return (
+    <div key="bmr" style={{ display: "flex", flexDirection: "column", gap: 14, animation: "tukaIn 0.35s ease" }}>
+      {/* stats */}
       <Card>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <Eyebrow>Body composition</Eyebrow>
@@ -158,25 +168,29 @@ function DietPage() {
         </div>
       </Card>
 
-      {/* Segmental lean + fat diagrams */}
-      {[
-        { title: "Segmental lean analysis", segs: BODY.lean },
-        { title: "Segmental fat analysis", segs: BODY.fat },
-      ].map(block => (
-        <Card key={block.title}>
-          <Eyebrow>{block.title}</Eyebrow>
-          <div style={{ marginTop: 10 }}>
-            <BodyMap segments={block.segs} />
-          </div>
-          <div style={{ display: "flex", justifyContent: "center", gap: 16, marginTop: 6 }}>
-            {[["Normal", C.positive], ["Over", C.warning], ["Under", "#5AA9E6"]].map(([label, col]) => (
-              <div key={label} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: C.faint }}>
-                <span style={{ width: 8, height: 8, borderRadius: 3, background: col }} />{label}
-              </div>
+      {/* segmental analysis with lean/fat toggle */}
+      <Card style={{ padding: "20px 20px 16px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <Eyebrow>Segmental analysis</Eyebrow>
+          <div style={{ display: "flex", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 999, padding: 3 }}>
+            {["lean", "fat"].map(m => (
+              <button key={m} onClick={() => setMode(m)} style={{
+                padding: "6px 16px", borderRadius: 999, border: "none", cursor: "pointer", fontFamily: "inherit",
+                fontSize: 12, fontWeight: 600, textTransform: "capitalize",
+                background: mode === m ? C.text : "transparent", color: mode === m ? C.bg : C.muted,
+              }}>{m}</button>
             ))}
           </div>
-        </Card>
-      ))}
+        </div>
+        <BodyMap src={src} segments={segs} />
+        <div style={{ display: "flex", justifyContent: "center", gap: 16, marginTop: 4 }}>
+          {[["Normal", C.positive], ["Over", C.warning], ["Under", "#5AA9E6"]].map(([label, col]) => (
+            <div key={label} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: C.faint }}>
+              <span style={{ width: 8, height: 8, borderRadius: 3, background: col }} />{label}
+            </div>
+          ))}
+        </div>
+      </Card>
     </div>
   );
 }
@@ -187,6 +201,7 @@ function BottomNav({ view, setView }) {
     { id: "weight", icon: "/weigher.png" },
     { id: "workout", icon: "/dumbbell.png" },
     { id: "diet", icon: "/diet.png" },
+    { id: "bmr", icon: "/body.png" },
   ];
   return (
     <div style={{ position: "fixed", left: 0, right: 0, bottom: "calc(env(safe-area-inset-bottom) + 18px)", display: "flex", justifyContent: "center", zIndex: 150, pointerEvents: "none" }}>
@@ -474,6 +489,9 @@ export default function TukaApp() {
 
       {/* ── DIET ── */}
       {view === "diet" && <DietPage />}
+
+      {/* ── BMR / BODY ── */}
+      {view === "bmr" && <BodyPage />}
 
       {/* Target popup */}
       {showTarget && (
