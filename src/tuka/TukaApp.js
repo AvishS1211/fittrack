@@ -168,11 +168,14 @@ function BodyPage() {
         </div>
       </Card>
 
-      {/* segmental analysis with lean/fat toggle */}
-      <Card style={{ padding: "20px 20px 16px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+      {/* segmental analysis — figure as full-bleed background, controls on top */}
+      <div style={{ position: "relative", borderRadius: 20, overflow: "hidden", border: `1px solid ${C.border}`, background: "#080808" }}>
+        <BodyMap src={src} segments={segs} />
+
+        {/* top: title + lean/fat toggle */}
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, padding: "16px 16px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", background: "linear-gradient(180deg, rgba(8,8,8,0.9) 20%, rgba(8,8,8,0))" }}>
           <Eyebrow>Segmental analysis</Eyebrow>
-          <div style={{ display: "flex", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 999, padding: 3 }}>
+          <div style={{ display: "flex", background: "rgba(28,28,30,0.6)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: `1px solid ${C.border}`, borderRadius: 999, padding: 3 }}>
             {["lean", "fat"].map(m => (
               <button key={m} onClick={() => setMode(m)} style={{
                 padding: "6px 16px", borderRadius: 999, border: "none", cursor: "pointer", fontFamily: "inherit",
@@ -182,15 +185,16 @@ function BodyPage() {
             ))}
           </div>
         </div>
-        <BodyMap src={src} segments={segs} />
-        <div style={{ display: "flex", justifyContent: "center", gap: 16, marginTop: 4 }}>
+
+        {/* bottom: legend */}
+        <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "26px 16px 14px", display: "flex", justifyContent: "center", gap: 16, background: "linear-gradient(0deg, rgba(8,8,8,0.9) 30%, rgba(8,8,8,0))" }}>
           {[["Normal", C.positive], ["Over", C.warning], ["Under", "#5AA9E6"]].map(([label, col]) => (
-            <div key={label} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: C.faint }}>
+            <div key={label} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: C.muted }}>
               <span style={{ width: 8, height: 8, borderRadius: 3, background: col }} />{label}
             </div>
           ))}
         </div>
-      </Card>
+      </div>
     </div>
   );
 }

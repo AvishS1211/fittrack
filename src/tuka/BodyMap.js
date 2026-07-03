@@ -1,15 +1,15 @@
 import { C } from "./theme";
 
-// Overlays segmental values on a 3D body image (1080×1920 framing shared by
-// lean.png / fat.png). Labels sit in the dark margins with dotted leaders;
-// the trunk value sits on the torso with a subtle pill for legibility.
+// Full-bleed 3D body figure (1040×1920 lean.png / fat.png) with segmental
+// values overlaid on the figure's dark side areas. Meant to sit as the
+// background of the segmental-analysis section, controls layered on top.
 const statusColor = s => (s === "Over" ? C.warning : s === "Under" ? "#5AA9E6" : C.positive);
 
 const POS = {
-  rightArm: { lx: 175, ly: 855, anchor: "end", lead: [195, 350] },
-  leftArm: { lx: 905, ly: 855, anchor: "start", lead: [885, 730] },
-  rightLeg: { lx: 175, ly: 1300, anchor: "end", lead: [195, 460] },
-  leftLeg: { lx: 905, ly: 1300, anchor: "start", lead: [885, 625] },
+  rightArm: { lx: 250, ly: 855, anchor: "end", lead: [262, 335] },
+  leftArm: { lx: 790, ly: 855, anchor: "start", lead: [778, 705] },
+  rightLeg: { lx: 250, ly: 1300, anchor: "end", lead: [262, 445] },
+  leftLeg: { lx: 790, ly: 1300, anchor: "start", lead: [778, 615] },
 };
 
 export default function BodyMap({ src, segments, unit = "kg" }) {
@@ -18,7 +18,7 @@ export default function BodyMap({ src, segments, unit = "kg" }) {
     const seg = segments[k];
     return (
       <g>
-        <line x1={p.lead[0]} y1={p.ly - 12} x2={p.lead[1]} y2={p.ly - 12} stroke="rgba(255,255,255,0.28)" strokeWidth="2" strokeDasharray="3 6" />
+        <line x1={p.lead[0]} y1={p.ly - 12} x2={p.lead[1]} y2={p.ly - 12} stroke="rgba(255,255,255,0.3)" strokeWidth="2" strokeDasharray="3 6" />
         <text x={p.lx} y={p.ly} textAnchor={p.anchor} fill={C.text} fontSize="42" fontWeight="700">
           {seg.kg}<tspan fontSize="24" fontStyle="italic" fill={C.muted}> {unit}</tspan>
         </text>
@@ -29,20 +29,18 @@ export default function BodyMap({ src, segments, unit = "kg" }) {
     );
   };
   return (
-    <div style={{ background: "#080808", borderRadius: 16, overflow: "hidden" }}>
-    <svg viewBox="-80 135 1240 1760" width="100%" style={{ display: "block" }}>
-      <image href={src} x="20" y="0" width="1040" height="1920" preserveAspectRatio="xMidYMid slice" />
+    <svg viewBox="0 120 1040 1740" width="100%" style={{ display: "block" }}>
+      <image href={src} x="0" y="0" width="1040" height="1920" preserveAspectRatio="xMidYMid slice" />
       {["rightArm", "leftArm", "rightLeg", "leftLeg"].map(k => <Lbl key={k} k={k} />)}
 
       {/* trunk value on the torso */}
-      <rect x="418" y="560" width="244" height="88" rx="18" fill="rgba(12,12,12,0.55)" />
-      <text x="540" y="608" textAnchor="middle" fill={C.text} fontSize="46" fontWeight="800">
+      <rect x="400" y="558" width="240" height="88" rx="18" fill="rgba(8,8,8,0.5)" />
+      <text x="520" y="606" textAnchor="middle" fill={C.text} fontSize="46" fontWeight="800">
         {segments.trunk.kg}<tspan fontSize="22" fontStyle="italic" fill={C.muted}> {unit}</tspan>
       </text>
-      <text x="540" y="635" textAnchor="middle" fill={statusColor(segments.trunk.status)} fontSize="20" fontWeight="700" letterSpacing="1">
+      <text x="520" y="633" textAnchor="middle" fill={statusColor(segments.trunk.status)} fontSize="20" fontWeight="700" letterSpacing="1">
         {segments.trunk.status.toUpperCase()}
       </text>
     </svg>
-    </div>
   );
 }
