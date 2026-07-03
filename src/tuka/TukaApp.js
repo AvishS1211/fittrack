@@ -4,6 +4,8 @@ import { supabase } from "./supabaseClient";
 import WeightChart from "./WeightChart";
 import { SPLIT_BY_DAY, DAY_LABELS, WEEK_ORDER, WORKOUTS } from "./workoutPlan";
 import { DIET } from "./dietPlan";
+import { BODY } from "./bodyComposition";
+import BodyMap from "./BodyMap";
 
 const RANGES = [
   { id: "1M", label: "1M", days: 31 },
@@ -135,6 +137,46 @@ function DietPage() {
         <Eyebrow>Key rule</Eyebrow>
         <div style={{ fontSize: 14, color: C.text, marginTop: 10 }}>{DIET.perMeal}</div>
       </Card>
+
+      {/* InBody key stats */}
+      <Card>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <Eyebrow>Body composition</Eyebrow>
+          <span style={{ fontSize: 10, color: C.faint }}>{fmtDate(BODY.date)}</span>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 14 }}>
+          {[
+            { label: "Muscle (SMM)", value: BODY.stats.smm, unit: "kg" },
+            { label: "Body fat", value: BODY.stats.pbf, unit: "%" },
+            { label: "BMR", value: BODY.stats.bmr, unit: "kcal" },
+          ].map(s => (
+            <div key={s.label} style={{ background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 16, padding: "14px 8px", textAlign: "center" }}>
+              <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.02em" }}>{s.value}<span style={{ fontSize: 10, fontStyle: "italic", color: C.muted }}> {s.unit}</span></div>
+              <div style={{ fontSize: 10, color: C.faint, letterSpacing: "0.06em", textTransform: "uppercase", marginTop: 5 }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {/* Segmental lean + fat diagrams */}
+      {[
+        { title: "Segmental lean analysis", segs: BODY.lean },
+        { title: "Segmental fat analysis", segs: BODY.fat },
+      ].map(block => (
+        <Card key={block.title}>
+          <Eyebrow>{block.title}</Eyebrow>
+          <div style={{ marginTop: 10 }}>
+            <BodyMap segments={block.segs} />
+          </div>
+          <div style={{ display: "flex", justifyContent: "center", gap: 16, marginTop: 6 }}>
+            {[["Normal", C.positive], ["Over", C.warning], ["Under", "#5AA9E6"]].map(([label, col]) => (
+              <div key={label} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: C.faint }}>
+                <span style={{ width: 8, height: 8, borderRadius: 3, background: col }} />{label}
+              </div>
+            ))}
+          </div>
+        </Card>
+      ))}
     </div>
   );
 }
