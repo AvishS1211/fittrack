@@ -142,33 +142,51 @@ function DietPage() {
 }
 
 // ── Body composition page (BMR + segmental lean/fat) ──
-function BodyPage() {
+function BodyPage({ body, email, onEdit, onSignOut }) {
   const [mode, setMode] = useState("lean"); // lean | fat
-  const segs = mode === "lean" ? BODY.lean : BODY.fat;
+  const segs = body ? (mode === "lean" ? body.lean : body.fat) : null;
   const src = mode === "lean" ? "/lean.png" : "/fat.png";
   return (
     <div key="bmr" style={{ display: "flex", flexDirection: "column", gap: 14, animation: "tukaIn 0.35s ease" }}>
+      {/* account */}
+      <Card style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px" }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 10, color: C.faint, letterSpacing: "0.08em", textTransform: "uppercase" }}>Signed in</div>
+          <div style={{ fontSize: 13, color: C.text, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{email || "—"}</div>
+        </div>
+        <button onClick={onSignOut} style={{ background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 999, padding: "8px 16px", color: C.muted, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Sign out</button>
+      </Card>
+
       {/* stats */}
       <Card>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <Eyebrow>Body composition</Eyebrow>
-          <span style={{ fontSize: 10, color: C.faint }}>{fmtDate(BODY.date)}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {body && <span style={{ fontSize: 10, color: C.faint }}>{fmtDate(body.date)}</span>}
+            <button onClick={onEdit} style={{ background: "transparent", border: `1px solid ${C.border}`, borderRadius: 999, padding: "5px 12px", color: C.text, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{body ? "Edit" : "Add"}</button>
+          </div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 14 }}>
-          {[
-            { label: "Muscle (SMM)", value: BODY.stats.smm, unit: "kg" },
-            { label: "Body fat", value: BODY.stats.pbf, unit: "%" },
-            { label: "BMR", value: BODY.stats.bmr, unit: "kcal" },
-          ].map(s => (
-            <div key={s.label} style={{ background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 16, padding: "14px 8px", textAlign: "center" }}>
-              <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.02em" }}>{s.value}<span style={{ fontSize: 10, fontStyle: "italic", color: C.muted }}> {s.unit}</span></div>
-              <div style={{ fontSize: 10, color: C.faint, letterSpacing: "0.06em", textTransform: "uppercase", marginTop: 5 }}>{s.label}</div>
-            </div>
-          ))}
-        </div>
+        {!body ? (
+          <div style={{ padding: "22px 0 6px", textAlign: "center", color: C.faint, fontSize: 13 }}>
+            Add your InBody results to see your body composition.
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 14 }}>
+            {[
+              { label: "Muscle (SMM)", value: body.stats.smm, unit: "kg" },
+              { label: "Body fat", value: body.stats.pbf, unit: "%" },
+              { label: "BMR", value: body.stats.bmr, unit: "kcal" },
+            ].map(s => (
+              <div key={s.label} style={{ background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 16, padding: "14px 8px", textAlign: "center" }}>
+                <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.02em" }}>{s.value}<span style={{ fontSize: 10, fontStyle: "italic", color: C.muted }}> {s.unit}</span></div>
+                <div style={{ fontSize: 10, color: C.faint, letterSpacing: "0.06em", textTransform: "uppercase", marginTop: 5 }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+        )}
       </Card>
 
-      {/* segmental analysis — figure as full-bleed background, controls on top */}
+      {!body ? null : (
       <div style={{ position: "relative", borderRadius: 20, overflow: "hidden", border: `1px solid ${C.border}`, background: "#080808" }}>
         <BodyMap src={src} segments={segs} />
 
@@ -195,6 +213,7 @@ function BodyPage() {
           ))}
         </div>
       </div>
+      )}
     </div>
   );
 }
@@ -245,6 +264,117 @@ function BottomNav({ view, setView }) {
   );
 }
 
+// ── Auth screens ──
+function Splash() {
+  return (
+    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <img src="/tuka-icon.png" alt="" width={44} height={44} style={{ borderRadius: 11, opacity: 0.9 }} />
+    </div>
+  );
+}
+
+function LoginScreen({ onSignIn }) {
+  return (
+    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'Inter', -apple-system, system-ui, sans-serif", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px", textAlign: "center", WebkitFontSmoothing: "antialiased" }}>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&display=swap" rel="stylesheet" />
+      <img src="/tuka-icon.png" alt="" width={64} height={64} style={{ borderRadius: 16 }} />
+      <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: "-0.02em", marginTop: 18 }}>tuka</div>
+      <div style={{ fontSize: 14, color: C.muted, marginTop: 8, maxWidth: 260, lineHeight: 1.5 }}>Track your weight, workouts and body — synced to your account.</div>
+      <button onClick={onSignIn} style={{
+        marginTop: 32, display: "flex", alignItems: "center", gap: 12, cursor: "pointer",
+        background: C.text, color: C.bg, border: "none", borderRadius: 999, padding: "14px 24px",
+        fontSize: 15, fontWeight: 600, fontFamily: "inherit",
+      }}>
+        <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+        </svg>
+        Continue with Google
+      </button>
+      <div style={{ fontSize: 11, color: C.faint, marginTop: 20 }}>Your data is private to your account.</div>
+    </div>
+  );
+}
+
+// ── Body composition editor ──
+const BODY_PARTS = [["rightArm", "Right arm"], ["leftArm", "Left arm"], ["trunk", "Trunk"], ["rightLeg", "Right leg"], ["leftLeg", "Left leg"]];
+const STATUSES = ["Normal", "Over", "Under"];
+const statusCol = s => (s === "Over" ? C.warning : s === "Under" ? "#5AA9E6" : C.positive);
+
+function BodyEditor({ initial, onClose, onSave }) {
+  const [form, setForm] = useState(() => JSON.parse(JSON.stringify(initial || BODY)));
+  const num = v => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+  const setStat = (k, v) => setForm(f => ({ ...f, stats: { ...f.stats, [k]: v } }));
+  const setSeg = (grp, part, field, v) => setForm(f => ({ ...f, [grp]: { ...f[grp], [part]: { ...f[grp][part], [field]: v } } }));
+  const fld = { background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px", color: C.text, fontSize: 15, fontFamily: "inherit", width: "100%" };
+
+  const save = () => {
+    const segClean = g => { const o = {}; BODY_PARTS.forEach(([k]) => { o[k] = { kg: num(form[g][k].kg), status: form[g][k].status }; }); return o; };
+    onSave({
+      date: form.date || todayStr(),
+      stats: { smm: num(form.stats.smm), pbf: num(form.stats.pbf), bmr: num(form.stats.bmr) },
+      lean: segClean("lean"),
+      fat: segClean("fat"),
+    });
+  };
+
+  const SegGroup = ({ grp, label }) => (
+    <div style={{ marginTop: 18 }}>
+      <div style={{ fontSize: 10, color: C.faint, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 }}>{label} (kg)</div>
+      {BODY_PARTS.map(([k, name]) => (
+        <div key={k} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+          <div style={{ width: 68, fontSize: 12, color: C.muted }}>{name}</div>
+          <input type="number" inputMode="decimal" value={form[grp][k].kg} onChange={e => setSeg(grp, k, "kg", e.target.value)} style={{ ...fld, flex: 1, fontSize: 14, textAlign: "center" }} />
+          <div style={{ display: "flex", gap: 4 }}>
+            {STATUSES.map(s => (
+              <button key={s} onClick={() => setSeg(grp, k, "status", s)} title={s} style={{
+                width: 30, height: 34, borderRadius: 8, cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 700,
+                border: `1px solid ${form[grp][k].status === s ? statusCol(s) : C.border}`,
+                background: form[grp][k].status === s ? statusCol(s) + "22" : "transparent",
+                color: form[grp][k].status === s ? statusCol(s) : C.faint,
+              }}>{s[0]}</button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 480, height: "88vh", display: "flex", flexDirection: "column", background: C.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, border: `1px solid ${C.border}`, padding: "22px 20px 0", animation: "tukaSheet 0.28s cubic-bezier(0.22,1,0.36,1)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+          <Eyebrow>Edit body data</Eyebrow>
+          <button onClick={onClose} style={{ background: "transparent", border: "none", color: C.faint, cursor: "pointer", fontSize: 16 }}>✕</button>
+        </div>
+
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", paddingBottom: 12 }}>
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontSize: 10, color: C.faint, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 }}>Test date & stats</div>
+            <input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} style={{ ...fld, fontSize: 13, marginBottom: 8 }} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+              {[["smm", "SMM kg"], ["pbf", "Fat %"], ["bmr", "BMR"]].map(([k, lab]) => (
+                <div key={k}>
+                  <div style={{ fontSize: 10, color: C.faint, marginBottom: 5, textAlign: "center" }}>{lab}</div>
+                  <input type="number" inputMode="decimal" value={form.stats[k]} onChange={e => setStat(k, e.target.value)} style={{ ...fld, fontSize: 14, textAlign: "center" }} />
+                </div>
+              ))}
+            </div>
+          </div>
+          <SegGroup grp="lean" label="Lean mass" />
+          <SegGroup grp="fat" label="Fat mass" />
+        </div>
+
+        <div style={{ padding: "12px 0 calc(env(safe-area-inset-bottom) + 16px)", background: C.surface }}>
+          <button onClick={save} style={{ width: "100%", padding: "15px", borderRadius: 16, border: "none", cursor: "pointer", background: C.text, color: C.bg, fontSize: 15, fontWeight: 600, fontFamily: "inherit" }}>Save</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function TukaApp() {
   const [view, setView] = useState("weight"); // weight | workout | diet
   const [weights, setWeights] = useState([]);
@@ -258,16 +388,43 @@ export default function TukaApp() {
   const [workoutDay, setWorkoutDay] = useState(new Date().getDay()); // 0=Sun..6=Sat
   const [refreshing, setRefreshing] = useState(false);
   const [toast, setToast] = useState(null);
+  const [session, setSession] = useState(undefined); // undefined = loading, null = logged out
+  const [body, setBody] = useState(null);            // per-user body composition (from DB)
+  const [showBodyEdit, setShowBodyEdit] = useState(false);
 
-  // Load everything from Supabase on mount.
+  const userId = session?.user?.id;
+
+  // Track auth session.
   useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session ?? null));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  // Load this user's data once signed in (RLS returns only their rows).
+  useEffect(() => {
+    if (!session) return;
     (async () => {
       const { data: w } = await supabase.from("tuka_weights").select("*").order("date", { ascending: true });
       const { data: t } = await supabase.from("tuka_targets").select("*").order("id", { ascending: true });
-      if (w) setWeights(w);
-      if (t) setTargets(t.map(r => ({ id: r.id, value: r.value })));
+      const { data: b } = await supabase.from("tuka_body").select("data").maybeSingle();
+      setWeights(w || []);
+      setTargets((t || []).map(r => ({ id: r.id, value: r.value })));
+      setBody(b?.data ?? null);
     })();
-  }, []);
+  }, [session]);
+
+  const signIn = () => supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin } });
+  const signOut = async () => { await supabase.auth.signOut(); setWeights([]); setTargets([]); setBody(null); };
+  const saveBody = async (data) => {
+    setBody(data);
+    setShowBodyEdit(false);
+    try {
+      const { error } = await supabase.from("tuka_body").upsert({ user_id: userId, data, updated_at: new Date().toISOString() });
+      if (error) throw error;
+      showToast("Body data saved");
+    } catch (err) { showToast("Couldn't save: " + (err?.message || "error")); }
+  };
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2200); };
 
@@ -326,7 +483,7 @@ export default function TukaApp() {
     try {
       // one weigh-in per day — replace any existing row for this date
       await supabase.from("tuka_weights").delete().eq("date", entry.date);
-      const { error } = await supabase.from("tuka_weights").insert(entry);
+      const { error } = await supabase.from("tuka_weights").insert({ ...entry, user_id: userId });
       if (error) throw error;
       setWeights(prev => [...prev.filter(w => w.date !== entry.date), entry]);
       showToast("Logged");
@@ -346,7 +503,7 @@ export default function TukaApp() {
     const row = { id: Date.now(), value };
     setShowTarget(false);
     try {
-      const { error } = await supabase.from("tuka_targets").insert(row);
+      const { error } = await supabase.from("tuka_targets").insert({ ...row, user_id: userId });
       if (error) throw error;
       setTargets(prev => [...prev, row]);
       showToast("Target set");
@@ -364,6 +521,9 @@ export default function TukaApp() {
     background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 12,
     padding: "12px 14px", color: C.text, fontSize: 15, fontFamily: "inherit", width: "100%",
   };
+
+  if (session === undefined) return <Splash />;
+  if (session === null) return <LoginScreen onSignIn={signIn} />;
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'Inter', -apple-system, system-ui, sans-serif", maxWidth: 480, margin: "0 auto", padding: "0 16px calc(env(safe-area-inset-bottom) + 104px)", position: "relative", WebkitFontSmoothing: "antialiased" }}>
@@ -495,7 +655,7 @@ export default function TukaApp() {
       {view === "diet" && <DietPage />}
 
       {/* ── BMR / BODY ── */}
-      {view === "bmr" && <BodyPage />}
+      {view === "bmr" && <BodyPage body={body} email={session.user?.email} onEdit={() => setShowBodyEdit(true)} onSignOut={signOut} />}
 
       {/* Target popup */}
       {showTarget && (
@@ -573,6 +733,8 @@ export default function TukaApp() {
           </div>
         </div>
       )}
+
+      {showBodyEdit && <BodyEditor initial={body} onClose={() => setShowBodyEdit(false)} onSave={saveBody} />}
 
       <BottomNav view={view} setView={setView} />
     </div>
