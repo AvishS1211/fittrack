@@ -145,7 +145,9 @@ function DietPage() {
 function BodyPage({ body, email, onEdit, onSignOut }) {
   const [mode, setMode] = useState("lean"); // lean | fat
   const segs = body ? (mode === "lean" ? body.lean : body.fat) : null;
-  const src = mode === "lean" ? "/lean.png" : "/fat.png";
+  // figure reflects the person's build: under → thin, normal → lean, over → heavy
+  const STATUS_IMG = { Under: "/under.png", Normal: "/lean.png", Over: "/fat.png" };
+  const src = segs ? (STATUS_IMG[segs.trunk.status] || "/lean.png") : "/lean.png";
   return (
     <div key="bmr" style={{ display: "flex", flexDirection: "column", gap: 14, animation: "tukaIn 0.35s ease" }}>
       {/* account */}
