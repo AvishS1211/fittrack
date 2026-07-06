@@ -266,36 +266,77 @@ function BottomNav({ view, setView }) {
   );
 }
 
-// ── Auth screens ──
-function Splash() {
-  return (
-    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <img src="/tuka-icon.png" alt="" width={44} height={44} style={{ borderRadius: 11, opacity: 0.9 }} />
-    </div>
-  );
-}
+// ── Auth screen: log in with a 4-digit code, or sign up with email + code ──
+function AuthScreen({ onAuthed }) {
+  const [signup, setSignup] = useState(false);
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
 
-function LoginScreen({ onSignIn }) {
+  const fld = {
+    width: "100%", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14,
+    padding: "14px 16px", color: C.text, fontSize: 16, fontFamily: "inherit", textAlign: "center",
+  };
+
+  const login = async () => {
+    if (!/^\d{4}$/.test(code)) { setErr("Enter your 4-digit code"); return; }
+    setBusy(true); setErr("");
+    const { data, error } = await supabase.from("tuka_users").select("id,email").eq("code", code).maybeSingle();
+    setBusy(false);
+    if (error) { setErr("Something went wrong — try again"); return; }
+    if (!data) { setErr("No account with that code"); return; }
+    onAuthed({ id: data.id, email: data.email });
+  };
+
+  const create = async () => {
+    if (!email.includes("@")) { setErr("Enter a valid email"); return; }
+    if (!/^\d{4}$/.test(code)) { setErr("Pick a 4-digit code"); return; }
+    setBusy(true); setErr("");
+    const id = crypto.randomUUID();
+    const { error } = await supabase.from("tuka_users").insert({ id, email: email.trim(), code });
+    setBusy(false);
+    if (error) {
+      setErr(error.code === "23505" ? "That code is taken — pick another" : "Couldn't sign up — try again");
+      return;
+    }
+    onAuthed({ id, email: email.trim() });
+  };
+
+  const submit = signup ? create : login;
+
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'Inter', -apple-system, system-ui, sans-serif", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px", textAlign: "center", WebkitFontSmoothing: "antialiased" }}>
       <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&display=swap" rel="stylesheet" />
-      <img src="/tuka-icon.png" alt="" width={64} height={64} style={{ borderRadius: 16 }} />
-      <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: "-0.02em", marginTop: 18 }}>tuka</div>
-      <div style={{ fontSize: 14, color: C.muted, marginTop: 8, maxWidth: 260, lineHeight: 1.5 }}>Track your weight, workouts and body — synced to your account.</div>
-      <button onClick={onSignIn} style={{
-        marginTop: 32, display: "flex", alignItems: "center", gap: 12, cursor: "pointer",
-        background: C.text, color: C.bg, border: "none", borderRadius: 999, padding: "14px 24px",
-        fontSize: 15, fontWeight: 600, fontFamily: "inherit",
-      }}>
-        <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
-          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
-          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
-          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
-          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
-        </svg>
-        Continue with Google
+      <img src="/tuka-icon.png" alt="" width={60} height={60} style={{ borderRadius: 15 }} />
+      <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.02em", marginTop: 16 }}>tuka</div>
+      <div style={{ fontSize: 13, color: C.muted, marginTop: 8 }}>{signup ? "Create your account" : "Enter your code to continue"}</div>
+
+      <div style={{ width: "100%", maxWidth: 320, marginTop: 26, display: "flex", flexDirection: "column", gap: 10 }}>
+        {signup && (
+          <input type="email" inputMode="email" autoCapitalize="off" autoCorrect="off" value={email} placeholder="email"
+            onChange={e => { setEmail(e.target.value); setErr(""); }} style={fld} />
+        )}
+        <input type="tel" inputMode="numeric" maxLength={4} value={code} placeholder="4-digit code"
+          onChange={e => { setCode(e.target.value.replace(/\D/g, "").slice(0, 4)); setErr(""); }}
+          onKeyDown={e => e.key === "Enter" && submit()}
+          style={{ ...fld, fontSize: 26, fontWeight: 700, letterSpacing: "0.4em", paddingLeft: 20 }} />
+
+        {err && <div style={{ fontSize: 12, color: C.warning }}>{err}</div>}
+
+        <button onClick={submit} disabled={busy} style={{
+          marginTop: 4, width: "100%", padding: "15px", borderRadius: 14, border: "none", cursor: "pointer",
+          background: C.text, color: C.bg, fontSize: 15, fontWeight: 600, fontFamily: "inherit", opacity: busy ? 0.6 : 1,
+        }}>{busy ? "…" : signup ? "Create account" : "Sign in"}</button>
+      </div>
+
+      <button onClick={() => { setSignup(s => !s); setErr(""); }} style={{ marginTop: 22, background: "transparent", border: "none", color: C.muted, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+        {signup ? "Have a code? Sign in" : "First time? Create an account"}
       </button>
-      <div style={{ fontSize: 11, color: C.faint, marginTop: 20 }}>Your data is private to your account.</div>
+
+      <div style={{ fontSize: 11, color: C.faint, marginTop: 24, maxWidth: 260, lineHeight: 1.5 }}>
+        Your code is how you sign back in — keep it somewhere safe.
+      </div>
     </div>
   );
 }
@@ -390,34 +431,32 @@ export default function TukaApp() {
   const [workoutDay, setWorkoutDay] = useState(new Date().getDay()); // 0=Sun..6=Sat
   const [refreshing, setRefreshing] = useState(false);
   const [toast, setToast] = useState(null);
-  const [session, setSession] = useState(undefined); // undefined = loading, null = logged out
+  // Lightweight code-based login: the signed-in user is remembered on-device.
+  const [user, setUser] = useState(() => {
+    try { const u = JSON.parse(localStorage.getItem("tuka_user") || "null"); return u && u.id ? u : null; }
+    catch { return null; }
+  });
   const [body, setBody] = useState(null);            // per-user body composition (from DB)
   const [showBodyEdit, setShowBodyEdit] = useState(false);
 
-  const userId = session?.user?.id;
+  const userId = user?.id;
 
-  // Track auth session.
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session ?? null));
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
-    return () => sub.subscription.unsubscribe();
-  }, []);
+  const onAuthed = (u) => { localStorage.setItem("tuka_user", JSON.stringify(u)); setUser(u); };
+  const signOut = () => { localStorage.removeItem("tuka_user"); setUser(null); setWeights([]); setTargets([]); setBody(null); };
 
-  // Load this user's data once signed in (RLS returns only their rows).
+  // Load this user's data (every query is scoped to their user_id).
   useEffect(() => {
-    if (!session) return;
+    if (!user) return;
     (async () => {
-      const { data: w } = await supabase.from("tuka_weights").select("*").order("date", { ascending: true });
-      const { data: t } = await supabase.from("tuka_targets").select("*").order("id", { ascending: true });
-      const { data: b } = await supabase.from("tuka_body").select("data").maybeSingle();
+      const { data: w } = await supabase.from("tuka_weights").select("*").eq("user_id", user.id).order("date", { ascending: true });
+      const { data: t } = await supabase.from("tuka_targets").select("*").eq("user_id", user.id).order("id", { ascending: true });
+      const { data: b } = await supabase.from("tuka_body").select("data").eq("user_id", user.id).maybeSingle();
       setWeights(w || []);
       setTargets((t || []).map(r => ({ id: r.id, value: r.value })));
       setBody(b?.data ?? null);
     })();
-  }, [session]);
+  }, [user]);
 
-  const signIn = () => supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin } });
-  const signOut = async () => { await supabase.auth.signOut(); setWeights([]); setTargets([]); setBody(null); };
   const saveBody = async (data) => {
     setBody(data);
     setShowBodyEdit(false);
@@ -483,8 +522,8 @@ export default function TukaApp() {
     setWInput("");
     setDInput(todayStr());
     try {
-      // one weigh-in per day — replace any existing row for this date
-      await supabase.from("tuka_weights").delete().eq("date", entry.date);
+      // one weigh-in per day — replace any existing row for this date (this user only)
+      await supabase.from("tuka_weights").delete().eq("user_id", userId).eq("date", entry.date);
       const { error } = await supabase.from("tuka_weights").insert({ ...entry, user_id: userId });
       if (error) throw error;
       setWeights(prev => [...prev.filter(w => w.date !== entry.date), entry]);
@@ -493,7 +532,7 @@ export default function TukaApp() {
   };
   const removeWeight = async (id) => {
     setWeights(prev => prev.filter(w => w.id !== id));
-    await supabase.from("tuka_weights").delete().eq("id", id);
+    await supabase.from("tuka_weights").delete().eq("user_id", userId).eq("id", id);
   };
 
   const openTarget = () => { setTInput(target != null ? String(target) : ""); setShowTarget(true); };
@@ -515,7 +554,7 @@ export default function TukaApp() {
     const current = targets[targets.length - 1];
     setTargets(prev => prev.slice(0, -1));
     setShowTarget(false);
-    if (current) await supabase.from("tuka_targets").delete().eq("id", current.id);
+    if (current) await supabase.from("tuka_targets").delete().eq("user_id", userId).eq("id", current.id);
     showToast("Target removed");
   };
 
@@ -524,8 +563,7 @@ export default function TukaApp() {
     padding: "12px 14px", color: C.text, fontSize: 15, fontFamily: "inherit", width: "100%",
   };
 
-  if (session === undefined) return <Splash />;
-  if (session === null) return <LoginScreen onSignIn={signIn} />;
+  if (!user) return <AuthScreen onAuthed={onAuthed} />;
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'Inter', -apple-system, system-ui, sans-serif", maxWidth: 480, margin: "0 auto", padding: "0 16px calc(env(safe-area-inset-bottom) + 104px)", position: "relative", WebkitFontSmoothing: "antialiased" }}>
@@ -657,7 +695,7 @@ export default function TukaApp() {
       {view === "diet" && <DietPage />}
 
       {/* ── BMR / BODY ── */}
-      {view === "bmr" && <BodyPage body={body} email={session.user?.email} onEdit={() => setShowBodyEdit(true)} onSignOut={signOut} />}
+      {view === "bmr" && <BodyPage body={body} email={user.email} onEdit={() => setShowBodyEdit(true)} onSignOut={signOut} />}
 
       {/* Target popup */}
       {showTarget && (
