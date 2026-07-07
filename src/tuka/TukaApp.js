@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { C, MONTHS, todayStr } from "./theme";
 import { supabase } from "./supabaseClient";
 import WeightChart from "./WeightChart";
-import { SPLIT_BY_DAY, DAY_LABELS, WEEK_ORDER, WORKOUTS } from "./workoutPlan";
+import { DAY_LABELS, WEEK_ORDER } from "./workoutPlan";
 import { DIET } from "./dietPlan";
 import { BODY } from "./bodyComposition";
 import BodyMap from "./BodyMap";
@@ -33,15 +33,32 @@ function Metric({ value, unit, size = 52, color = C.text }) {
   );
 }
 
-// ── Workout page (day-wise PPL split) ──
-function WorkoutPage({ workoutDay, setWorkoutDay }) {
-  const type = SPLIT_BY_DAY[workoutDay];
-  const plan = WORKOUTS[type];
+// ── Workout page (renders the user's uploaded, day-wise plan) ──
+function WorkoutPage({ plan, workoutDay, setWorkoutDay, onOpenUpload }) {
   const todayDow = new Date().getDay();
+  const day = plan?.days?.[DAY_LABELS[workoutDay]] || null;
+  const hasEx = day && Array.isArray(day.exercises) && day.exercises.length > 0;
+
+  if (!plan) {
+    return (
+      <div key="workout" style={{ display: "flex", flexDirection: "column", gap: 14, animation: "tukaIn 0.35s ease" }}>
+        <Card style={{ padding: "44px 22px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12, textAlign: "center" }}>
+          <img src="/dumbbell.png" alt="" width={30} height={30} style={{ opacity: 0.4 }} />
+          <div style={{ fontSize: 15, fontWeight: 600 }}>No workout plan yet</div>
+          <div style={{ fontSize: 13, color: C.faint, maxWidth: 260, lineHeight: 1.5 }}>Upload your plan as a PDF and we'll lay it out day by day.</div>
+          <button onClick={onOpenUpload} style={{ marginTop: 6, background: C.text, color: C.bg, border: "none", borderRadius: 999, padding: "12px 22px", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>⤒ Upload plan</button>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div key="workout" style={{ display: "flex", flexDirection: "column", gap: 14, animation: "tukaIn 0.35s ease" }}>
       <Card>
-        <Eyebrow>Workout plan</Eyebrow>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <Eyebrow>Workout plan</Eyebrow>
+          <button onClick={onOpenUpload} style={{ background: "transparent", border: `1px solid ${C.border}`, borderRadius: 999, padding: "6px 12px", color: C.text, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>⤒ Upload</button>
+        </div>
         <div style={{ display: "flex", gap: 6, marginTop: 14 }}>
           {WEEK_ORDER.map(dow => {
             const active = dow === workoutDay;
@@ -57,28 +74,25 @@ function WorkoutPage({ workoutDay, setWorkoutDay }) {
         </div>
         <div style={{ marginTop: 18 }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-            <span style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em" }}>{type === "Rest" ? "Rest day" : type}</span>
+            <span style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em" }}>{hasEx ? (day.title || "Workout") : "Rest day"}</span>
             {workoutDay === todayDow && <span style={{ fontSize: 11, color: C.positive, fontWeight: 600 }}>· today</span>}
           </div>
-          {plan && <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>{plan.subtitle}</div>}
+          {hasEx && day.focus && <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>{day.focus}</div>}
         </div>
       </Card>
 
-      {!plan ? (
+      {!hasEx ? (
         <Card style={{ padding: "48px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
           <img src="/dumbbell.png" alt="" width={28} height={28} style={{ opacity: 0.4 }} />
           <div style={{ fontSize: 13, color: C.faint }}>Recovery day — no lifting.</div>
         </Card>
       ) : (
         <Card>
-          {plan.exercises.map((ex, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "13px 0", borderBottom: i < plan.exercises.length - 1 ? `1px solid ${C.border}` : "none" }}>
+          {day.exercises.map((ex, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "13px 0", borderBottom: i < day.exercises.length - 1 ? `1px solid ${C.border}` : "none" }}>
               <div style={{ width: 22, fontSize: 12, fontWeight: 700, color: C.faint, paddingTop: 2 }}>{i + 1}</div>
               <div style={{ flex: 1 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  <span style={{ fontSize: 15, fontWeight: 600 }}>{ex.name}</span>
-                  {ex.tag && <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.muted, border: `1px solid ${C.border}`, borderRadius: 999, padding: "2px 7px" }}>{ex.tag}</span>}
-                </div>
+                <span style={{ fontSize: 15, fontWeight: 600 }}>{ex.name}</span>
                 {ex.note && <div style={{ fontSize: 11, color: C.faint, marginTop: 3 }}>{ex.note}</div>}
               </div>
               <div style={{ fontSize: 13, fontWeight: 600, color: C.text, whiteSpace: "nowrap", paddingTop: 1 }}>{ex.sets}</div>
@@ -86,6 +100,92 @@ function WorkoutPage({ workoutDay, setWorkoutDay }) {
           ))}
         </Card>
       )}
+    </div>
+  );
+}
+
+// ── Workout upload sheet: copy-a-prompt → upload PDF → preview → save ──
+const WORKOUT_PROMPT = `Create my weekly workout plan as plain text I can save as a PDF.
+Format it EXACTLY like this, Monday through Sunday:
+
+Monday — Push (chest, shoulders, triceps)
+1. Incline DB press — 4 x 8-10
+2. Lateral raise — 3 x 12-15
+Tuesday — Rest
+Wednesday — Legs (quads, hams, glutes)
+1. ...
+
+Rules: one day per line block, day name + workout title, then a numbered list of exercises each as "name — sets x reps". Write "Rest" for rest days. Keep it plain, no extra commentary.`;
+
+function WorkoutUploadSheet({ onClose, onParse, onSave }) {
+  const [parsed, setParsed] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [copied, setCopied] = useState(false);
+  const fileRef = useRef(null);
+
+  const pick = async (file) => {
+    if (!file) return;
+    setBusy(true); setErr("");
+    try { setParsed(await onParse(file)); }
+    catch (e) { setErr(e.message || "Couldn't read that PDF"); }
+    setBusy(false);
+  };
+  const copyPrompt = async () => {
+    try { await navigator.clipboard.writeText(WORKOUT_PROMPT); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch {}
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 480, maxHeight: "86vh", display: "flex", flexDirection: "column", background: C.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, border: `1px solid ${C.border}`, padding: "22px 20px calc(env(safe-area-inset-bottom) + 20px)", animation: "tukaSheet 0.28s cubic-bezier(0.22,1,0.36,1)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <Eyebrow>{parsed ? "Review your plan" : "Upload workout plan"}</Eyebrow>
+          <button onClick={onClose} style={{ background: "transparent", border: "none", color: C.faint, cursor: "pointer", fontSize: 16 }}>✕</button>
+        </div>
+
+        <input ref={fileRef} type="file" accept="application/pdf,.pdf" style={{ display: "none" }}
+          onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; pick(f); }} />
+
+        {!parsed ? (
+          <div style={{ overflowY: "auto" }}>
+            <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5 }}>
+              Ask ChatGPT or Claude for your plan using the prompt below, save its reply as a <b style={{ color: C.text }}>PDF</b>, then upload it.
+            </div>
+            <div style={{ position: "relative", marginTop: 12, background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 14px", fontSize: 12, color: C.muted, lineHeight: 1.5, whiteSpace: "pre-wrap", maxHeight: 180, overflowY: "auto" }}>
+              {WORKOUT_PROMPT}
+            </div>
+            <button onClick={copyPrompt} style={{ width: "100%", marginTop: 10, background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 12, padding: "11px", color: C.text, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{copied ? "Copied ✓" : "Copy prompt"}</button>
+
+            {err && <div style={{ fontSize: 12, color: C.warning, marginTop: 12, textAlign: "center" }}>{err}</div>}
+
+            <button onClick={() => fileRef.current?.click()} disabled={busy} style={{ width: "100%", marginTop: 12, background: C.text, color: C.bg, border: "none", borderRadius: 16, padding: "15px", fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", opacity: busy ? 0.6 : 1 }}>
+              {busy ? "Reading your PDF…" : "⤒ Choose PDF"}
+            </button>
+          </div>
+        ) : (
+          <>
+            <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+              {WEEK_ORDER.map(dow => {
+                const d = parsed.days?.[DAY_LABELS[dow]];
+                const ex = d && Array.isArray(d.exercises) ? d.exercises : [];
+                return (
+                  <div key={dow} style={{ padding: "12px 0", borderBottom: `1px solid ${C.border}` }}>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: C.faint, width: 34 }}>{DAY_LABELS[dow].toUpperCase()}</span>
+                      <span style={{ fontSize: 14, fontWeight: 600 }}>{ex.length ? (d.title || "Workout") : "Rest"}</span>
+                      {ex.length > 0 && <span style={{ fontSize: 11, color: C.faint }}>· {ex.length} exercises</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ display: "flex", gap: 10, paddingTop: 14 }}>
+              <button onClick={() => { setParsed(null); setErr(""); }} style={{ flex: 1, background: "transparent", border: `1px solid ${C.border}`, borderRadius: 16, padding: "15px", color: C.muted, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Try again</button>
+              <button onClick={() => onSave(parsed)} style={{ flex: 1.4, background: C.text, color: C.bg, border: "none", borderRadius: 16, padding: "15px", fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Save plan</button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -478,11 +578,13 @@ export default function TukaApp() {
   const [showBodyEdit, setShowBodyEdit] = useState(false);
   const [bodyEditInitial, setBodyEditInitial] = useState(null); // data to prefill the editor
   const [analyzing, setAnalyzing] = useState(false);
+  const [workout, setWorkout] = useState(null);      // per-user uploaded workout plan
+  const [showWorkoutUpload, setShowWorkoutUpload] = useState(false);
 
   const userId = user?.id;
 
   const onAuthed = (u) => { localStorage.setItem("tuka_user", JSON.stringify(u)); setUser(u); };
-  const signOut = () => { localStorage.removeItem("tuka_user"); setUser(null); setWeights([]); setTargets([]); setBody(null); };
+  const signOut = () => { localStorage.removeItem("tuka_user"); setUser(null); setWeights([]); setTargets([]); setBody(null); setWorkout(null); };
 
   // Load this user's data (every query is scoped to their user_id).
   useEffect(() => {
@@ -491,9 +593,11 @@ export default function TukaApp() {
       const { data: w } = await supabase.from("tuka_weights").select("*").eq("user_id", user.id).order("date", { ascending: true });
       const { data: t } = await supabase.from("tuka_targets").select("*").eq("user_id", user.id).order("id", { ascending: true });
       const { data: b } = await supabase.from("tuka_body").select("data").eq("user_id", user.id).maybeSingle();
+      const { data: wk } = await supabase.from("tuka_workout").select("data").eq("user_id", user.id).maybeSingle();
       setWeights(w || []);
       setTargets((t || []).map(r => ({ id: r.id, value: r.value })));
       setBody(b?.data ?? null);
+      setWorkout(wk?.data ?? null);
     })();
   }, [user]);
 
@@ -550,6 +654,33 @@ export default function TukaApp() {
       showToast(err.message || "Couldn't read that image");
     }
     setAnalyzing(false);
+  };
+
+  // Read a PDF file to base64 (no compression — plans are small).
+  const fileToBase64 = (file) => new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(",")[1]);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+  const parseWorkout = async (file) => {
+    const pdf = await fileToBase64(file);
+    const res = await fetch("/api/parse-workout", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pdf, mimeType: file.type || "application/pdf" }),
+    });
+    const j = await res.json();
+    if (!res.ok || !j.data) throw new Error(j.error || "Couldn't read that PDF");
+    return j.data;
+  };
+  const saveWorkout = async (data) => {
+    setWorkout(data);
+    setShowWorkoutUpload(false);
+    try {
+      const { error } = await supabase.from("tuka_workout").upsert({ user_id: userId, data, updated_at: new Date().toISOString() });
+      if (error) throw error;
+      showToast("Workout plan saved");
+    } catch (err) { showToast("Couldn't save: " + (err?.message || "error")); }
   };
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2200); };
@@ -774,7 +905,7 @@ export default function TukaApp() {
       )}
 
       {/* ── WORKOUT ── */}
-      {view === "workout" && <WorkoutPage workoutDay={workoutDay} setWorkoutDay={setWorkoutDay} />}
+      {view === "workout" && <WorkoutPage plan={workout} workoutDay={workoutDay} setWorkoutDay={setWorkoutDay} onOpenUpload={() => setShowWorkoutUpload(true)} />}
 
       {/* ── DIET ── */}
       {view === "diet" && <DietPage weightKg={latest ? Number(latest.kg) : null} body={body} />}
@@ -860,6 +991,8 @@ export default function TukaApp() {
       )}
 
       {showBodyEdit && <BodyEditor initial={bodyEditInitial} onClose={() => setShowBodyEdit(false)} onSave={saveBody} />}
+
+      {showWorkoutUpload && <WorkoutUploadSheet onClose={() => setShowWorkoutUpload(false)} onParse={parseWorkout} onSave={saveWorkout} />}
 
       <BottomNav view={view} setView={setView} />
     </div>
