@@ -304,11 +304,11 @@ function AuthScreen({ onAuthed }) {
   };
 
   const fld = {
-    width: "100%", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 16,
+    width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 16,
     padding: "17px 18px", color: C.text, fontSize: 16, fontFamily: "inherit", outline: "none",
   };
   const cta = {
-    width: "100%", marginTop: 12, padding: "17px", borderRadius: 16, border: "none", cursor: "pointer",
+    width: "100%", boxSizing: "border-box", marginTop: 12, padding: "17px", borderRadius: 16, border: "none", cursor: "pointer",
     background: C.text, color: C.bg, fontSize: 16, fontWeight: 700, fontFamily: "inherit",
     display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
   };
