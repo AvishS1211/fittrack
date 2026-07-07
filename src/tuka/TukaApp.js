@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { C, MONTHS, todayStr } from "./theme";
 import { supabase } from "./supabaseClient";
 import WeightChart from "./WeightChart";
@@ -163,8 +163,9 @@ function DietPage({ weightKg, body }) {
 }
 
 // ── Body composition page (BMR + segmental lean/fat) ──
-function BodyPage({ body, email, onEdit, onSignOut }) {
+function BodyPage({ body, email, onEdit, onUpload, analyzing, onSignOut }) {
   const [mode, setMode] = useState("lean"); // lean | fat
+  const fileRef = useRef(null);
   const segs = body ? (mode === "lean" ? body.lean : body.fat) : null;
   // figure reflects the person's build: under → thin, normal → lean, over → heavy
   const STATUS_IMG = { Under: "/under.png", Normal: "/lean.png", Over: "/fat.png" };
@@ -184,9 +185,12 @@ function BodyPage({ body, email, onEdit, onSignOut }) {
       <Card>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <Eyebrow>Body composition</Eyebrow>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            {body && <span style={{ fontSize: 10, color: C.faint }}>{fmtDate(body.date)}</span>}
-            <button onClick={onEdit} style={{ background: "transparent", border: `1px solid ${C.border}`, borderRadius: 999, padding: "5px 12px", color: C.text, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{body ? "Edit" : "Add"}</button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {body && <span style={{ fontSize: 10, color: C.faint, marginRight: 4 }}>{fmtDate(body.date)}</span>}
+            <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }}
+              onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) onUpload(f); }} />
+            <button onClick={() => fileRef.current?.click()} disabled={analyzing} style={{ background: C.text, border: "none", borderRadius: 999, padding: "6px 13px", color: C.bg, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", opacity: analyzing ? 0.6 : 1 }}>{analyzing ? "Reading…" : "⤒ Upload"}</button>
+            <button onClick={onEdit} style={{ background: "transparent", border: `1px solid ${C.border}`, borderRadius: 999, padding: "6px 12px", color: C.text, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{body ? "Edit" : "Add"}</button>
           </div>
         </div>
         {!body ? (
@@ -472,6 +476,8 @@ export default function TukaApp() {
   });
   const [body, setBody] = useState(null);            // per-user body composition (from DB)
   const [showBodyEdit, setShowBodyEdit] = useState(false);
+  const [bodyEditInitial, setBodyEditInitial] = useState(null); // data to prefill the editor
+  const [analyzing, setAnalyzing] = useState(false);
 
   const userId = user?.id;
 
@@ -499,6 +505,51 @@ export default function TukaApp() {
       if (error) throw error;
       showToast("Body data saved");
     } catch (err) { showToast("Couldn't save: " + (err?.message || "error")); }
+  };
+  const openBodyEdit = (initial) => { setBodyEditInitial(initial); setShowBodyEdit(true); };
+
+  // Downscale + compress an image to keep the upload small, return base64 (no prefix).
+  const compressImage = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const max = 1600;
+        const scale = Math.min(1, max / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+        resolve(dataUrl.split(",")[1]);
+      };
+      img.onerror = reject;
+      img.src = reader.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  // Upload an InBody photo → Gemini → open the editor prefilled for review.
+  const analyzeBMR = async (file) => {
+    if (!file || analyzing) return;
+    setAnalyzing(true);
+    showToast("Reading your InBody…");
+    try {
+      const base64 = await compressImage(file);
+      const res = await fetch("/api/parse-bmr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: base64, mimeType: "image/jpeg" }),
+      });
+      const j = await res.json();
+      if (!res.ok || !j.data) throw new Error(j.error || "Couldn't read that image");
+      openBodyEdit(j.data);
+      showToast("Check the values, then Save");
+    } catch (err) {
+      showToast(err.message || "Couldn't read that image");
+    }
+    setAnalyzing(false);
   };
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2200); };
@@ -729,7 +780,7 @@ export default function TukaApp() {
       {view === "diet" && <DietPage weightKg={latest ? Number(latest.kg) : null} body={body} />}
 
       {/* ── BMR / BODY ── */}
-      {view === "bmr" && <BodyPage body={body} email={user.email} onEdit={() => setShowBodyEdit(true)} onSignOut={signOut} />}
+      {view === "bmr" && <BodyPage body={body} email={user.email} onEdit={() => openBodyEdit(body)} onUpload={analyzeBMR} analyzing={analyzing} onSignOut={signOut} />}
 
       {/* Target popup */}
       {showTarget && (
@@ -808,7 +859,7 @@ export default function TukaApp() {
         </div>
       )}
 
-      {showBodyEdit && <BodyEditor initial={body} onClose={() => setShowBodyEdit(false)} onSave={saveBody} />}
+      {showBodyEdit && <BodyEditor initial={bodyEditInitial} onClose={() => setShowBodyEdit(false)} onSave={saveBody} />}
 
       <BottomNav view={view} setView={setView} />
     </div>
