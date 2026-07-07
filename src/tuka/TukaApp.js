@@ -90,11 +90,34 @@ function WorkoutPage({ workoutDay, setWorkoutDay }) {
   );
 }
 
-// ── Diet page (calorie + macro targets) ──
-function DietPage() {
-  const total = DIET.calories;
+// ── Diet page (calorie + macro targets, computed from BMR or weight) ──
+function DietPage({ weightKg, body }) {
   const numColor = { Protein: C.positive, Carbs: C.text, Fat: C.warning };
   const barColor = { Protein: C.positive, Carbs: C.muted, Fat: C.warning };
+
+  const bmr = body?.stats?.bmr ? Number(body.stats.bmr) : null;
+  const total = bmr ? Math.round(bmr) : (weightKg ? Math.round(weightKg * DIET.weightFactor) : null);
+  const source = bmr
+    ? "From your measured BMR."
+    : (weightKg ? `Estimated from your weight (${weightKg} kg × ${DIET.weightFactor}). Add your InBody in the BMR tab for a precise number.` : null);
+
+  const macros = total ? ["Protein", "Carbs", "Fat"].map(key => {
+    const kcal = Math.round(total * DIET.macroSplit[key]);
+    const grams = Math.round(kcal / DIET.kcalPerG[key]);
+    return { key, grams, kcal, pct: Math.round(DIET.macroSplit[key] * 100) };
+  }) : [];
+
+  if (!total) {
+    return (
+      <div key="diet" style={{ display: "flex", flexDirection: "column", gap: 14, animation: "tukaIn 0.35s ease" }}>
+        <Card style={{ padding: "40px 22px", textAlign: "center" }}>
+          <Eyebrow>Daily target</Eyebrow>
+          <div style={{ fontSize: 14, color: C.muted, marginTop: 14 }}>Log a weigh-in (or add your BMR) to see your calorie & macro targets.</div>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div key="diet" style={{ display: "flex", flexDirection: "column", gap: 14, animation: "tukaIn 0.35s ease" }}>
       <Card style={{ padding: 22 }}>
@@ -102,35 +125,33 @@ function DietPage() {
         <div style={{ marginTop: 12 }}>
           <Metric value={total.toLocaleString()} unit="kcal" />
         </div>
-        <div style={{ fontSize: 13, color: C.muted, marginTop: 14 }}>{DIET.note}</div>
+        <div style={{ fontSize: 13, color: C.muted, marginTop: 14 }}>{source}</div>
       </Card>
 
       <Card>
         <Eyebrow>Macros</Eyebrow>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 14 }}>
-          {DIET.macros.map(m => {
-            const kcal = m.grams * m.kcalPerG;
-            const pct = Math.round((kcal / total) * 100);
-            return (
-              <div key={m.key} style={{ background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 16, padding: "16px 8px", textAlign: "center" }}>
-                <div style={{ fontSize: 26, fontWeight: 700, color: numColor[m.key], letterSpacing: "-0.02em" }}>
-                  {m.grams}<span style={{ fontSize: 11, fontStyle: "italic", color: C.muted }}> g</span>
-                </div>
-                <div style={{ fontSize: 10, color: C.faint, letterSpacing: "0.08em", textTransform: "uppercase", marginTop: 5 }}>{m.key}</div>
-                <div style={{ fontSize: 10, color: C.faint, marginTop: 6 }}>{kcal} kcal · {pct}%</div>
+          {macros.map(m => (
+            <div key={m.key} style={{ background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 16, padding: "16px 8px", textAlign: "center" }}>
+              <div style={{ fontSize: 26, fontWeight: 700, color: numColor[m.key], letterSpacing: "-0.02em" }}>
+                {m.grams}<span style={{ fontSize: 11, fontStyle: "italic", color: C.muted }}> g</span>
               </div>
-            );
-          })}
+              <div style={{ fontSize: 10, color: C.faint, letterSpacing: "0.08em", textTransform: "uppercase", marginTop: 5 }}>{m.key}</div>
+              <div style={{ fontSize: 10, color: C.faint, marginTop: 6 }}>{m.kcal} kcal · {m.pct}%</div>
+            </div>
+          ))}
         </div>
 
         {/* proportion bar */}
         <div style={{ display: "flex", height: 8, borderRadius: 999, overflow: "hidden", marginTop: 16 }}>
-          {DIET.macros.map(m => (
-            <div key={m.key} style={{ flex: m.grams * m.kcalPerG, background: barColor[m.key] }} />
+          {macros.map(m => (
+            <div key={m.key} style={{ flex: m.kcal, background: barColor[m.key] }} />
           ))}
         </div>
 
-        <div style={{ fontSize: 11, color: C.faint, marginTop: 14, lineHeight: 1.5 }}>{DIET.derivedNote}</div>
+        <div style={{ fontSize: 11, color: C.faint, marginTop: 14, lineHeight: 1.5 }}>
+          Protein 30% · Carbs 45% · Fat 25% of your daily calories.
+        </div>
       </Card>
 
       <Card>
@@ -705,7 +726,7 @@ export default function TukaApp() {
       {view === "workout" && <WorkoutPage workoutDay={workoutDay} setWorkoutDay={setWorkoutDay} />}
 
       {/* ── DIET ── */}
-      {view === "diet" && <DietPage />}
+      {view === "diet" && <DietPage weightKg={latest ? Number(latest.kg) : null} body={body} />}
 
       {/* ── BMR / BODY ── */}
       {view === "bmr" && <BodyPage body={body} email={user.email} onEdit={() => setShowBodyEdit(true)} onSignOut={signOut} />}
