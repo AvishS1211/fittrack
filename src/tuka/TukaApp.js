@@ -266,76 +266,89 @@ function BottomNav({ view, setView }) {
   );
 }
 
-// ── Auth screen: log in with a 4-digit code, or sign up with email + code ──
+// ── Onboarding / auth: enter email, then a 4-digit code to be remembered ──
 function AuthScreen({ onAuthed }) {
-  const [signup, setSignup] = useState(false);
+  const [step, setStep] = useState("email"); // email | code
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
+  const [existing, setExisting] = useState(false); // does this email already have an account?
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const em = email.trim().toLowerCase();
 
-  const fld = {
-    width: "100%", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14,
-    padding: "14px 16px", color: C.text, fontSize: 16, fontFamily: "inherit", textAlign: "center",
-  };
-
-  const login = async () => {
-    if (!/^\d{4}$/.test(code)) { setErr("Enter your 4-digit code"); return; }
+  const nextFromEmail = async () => {
+    if (!em.includes("@") || !em.includes(".")) { setErr("Enter a valid email"); return; }
     setBusy(true); setErr("");
-    const { data, error } = await supabase.from("tuka_users").select("id,email").eq("code", code).maybeSingle();
+    const { data, error } = await supabase.from("tuka_users").select("id").eq("email", em).maybeSingle();
     setBusy(false);
     if (error) { setErr("Something went wrong — try again"); return; }
-    if (!data) { setErr("No account with that code"); return; }
-    onAuthed({ id: data.id, email: data.email });
+    setExisting(!!data);
+    setStep("code");
   };
 
-  const create = async () => {
-    if (!email.includes("@")) { setErr("Enter a valid email"); return; }
-    if (!/^\d{4}$/.test(code)) { setErr("Pick a 4-digit code"); return; }
+  const submitCode = async () => {
+    if (!/^\d{4}$/.test(code)) { setErr("Enter a 4-digit code"); return; }
     setBusy(true); setErr("");
-    const id = crypto.randomUUID();
-    const { error } = await supabase.from("tuka_users").insert({ id, email: email.trim(), code });
-    setBusy(false);
-    if (error) {
-      setErr(error.code === "23505" ? "That code is taken — pick another" : "Couldn't sign up — try again");
+    if (existing) {
+      const { data } = await supabase.from("tuka_users").select("id").eq("email", em).eq("code", code).maybeSingle();
+      setBusy(false);
+      if (data) onAuthed({ id: data.id, email: em });
+      else setErr("Wrong code for this email");
       return;
     }
-    onAuthed({ id, email: email.trim() });
+    const id = crypto.randomUUID();
+    const { error } = await supabase.from("tuka_users").insert({ id, email: em, code });
+    setBusy(false);
+    if (error) { setErr(error.code === "23505" ? "That code is taken — pick another" : "Couldn't create account — try again"); return; }
+    onAuthed({ id, email: em });
   };
 
-  const submit = signup ? create : login;
+  const fld = {
+    width: "100%", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 16,
+    padding: "17px 18px", color: C.text, fontSize: 16, fontFamily: "inherit", outline: "none",
+  };
+  const cta = {
+    width: "100%", marginTop: 12, padding: "17px", borderRadius: 16, border: "none", cursor: "pointer",
+    background: C.text, color: C.bg, fontSize: 16, fontWeight: 700, fontFamily: "inherit",
+    display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+  };
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'Inter', -apple-system, system-ui, sans-serif", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px", textAlign: "center", WebkitFontSmoothing: "antialiased" }}>
+    <div style={{ position: "fixed", inset: 0, background: `#0C0C0C url(/onboard.png) center top / cover no-repeat`, color: C.text, fontFamily: "'Inter', -apple-system, system-ui, sans-serif", WebkitFontSmoothing: "antialiased" }}>
       <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&display=swap" rel="stylesheet" />
-      <img src="/tuka-icon.png" alt="" width={60} height={60} style={{ borderRadius: 15 }} />
-      <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.02em", marginTop: 16 }}>tuka</div>
-      <div style={{ fontSize: 13, color: C.muted, marginTop: 8 }}>{signup ? "Create your account" : "Enter your code to continue"}</div>
+      <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: "60px 22px calc(env(safe-area-inset-bottom) + 24px)", background: "linear-gradient(180deg, rgba(12,12,12,0) 0%, rgba(12,12,12,0.82) 26%, #0C0C0C 66%)" }}>
+        <div style={{ maxWidth: 480, margin: "0 auto" }}>
+          <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.15 }}>Start Your Fitness Journey</div>
+          <div style={{ fontSize: 13, color: C.muted, marginTop: 8 }}>
+            {step === "email" ? "Enter your email to begin." : existing ? "Enter your code to sign in." : "Set a 4-digit code you'll remember."}
+          </div>
 
-      <div style={{ width: "100%", maxWidth: 320, marginTop: 26, display: "flex", flexDirection: "column", gap: 10 }}>
-        {signup && (
-          <input type="email" inputMode="email" autoCapitalize="off" autoCorrect="off" value={email} placeholder="email"
-            onChange={e => { setEmail(e.target.value); setErr(""); }} style={fld} />
-        )}
-        <input type="tel" inputMode="numeric" maxLength={4} value={code} placeholder="4-digit code"
-          onChange={e => { setCode(e.target.value.replace(/\D/g, "").slice(0, 4)); setErr(""); }}
-          onKeyDown={e => e.key === "Enter" && submit()}
-          style={{ ...fld, fontSize: 26, fontWeight: 700, letterSpacing: "0.4em", paddingLeft: 20 }} />
+          <div style={{ marginTop: 20 }}>
+            {step === "email" ? (
+              <input type="email" inputMode="email" autoCapitalize="off" autoCorrect="off" spellCheck={false}
+                value={email} placeholder="Enter your email"
+                onChange={e => { setEmail(e.target.value); setErr(""); }}
+                onKeyDown={e => e.key === "Enter" && nextFromEmail()} style={fld} />
+            ) : (
+              <input type="tel" inputMode="numeric" maxLength={4} autoFocus value={code} placeholder="• • • •"
+                onChange={e => { setCode(e.target.value.replace(/\D/g, "").slice(0, 4)); setErr(""); }}
+                onKeyDown={e => e.key === "Enter" && submitCode()}
+                style={{ ...fld, textAlign: "center", fontSize: 28, fontWeight: 700, letterSpacing: "0.5em", paddingLeft: 24 }} />
+            )}
 
-        {err && <div style={{ fontSize: 12, color: C.warning }}>{err}</div>}
+            {err && <div style={{ fontSize: 12, color: C.warning, marginTop: 10 }}>{err}</div>}
 
-        <button onClick={submit} disabled={busy} style={{
-          marginTop: 4, width: "100%", padding: "15px", borderRadius: 14, border: "none", cursor: "pointer",
-          background: C.text, color: C.bg, fontSize: 15, fontWeight: 600, fontFamily: "inherit", opacity: busy ? 0.6 : 1,
-        }}>{busy ? "…" : signup ? "Create account" : "Sign in"}</button>
-      </div>
+            <button onClick={step === "email" ? nextFromEmail : submitCode} disabled={busy} style={{ ...cta, opacity: busy ? 0.6 : 1 }}>
+              {busy ? "…" : "Continue"} {!busy && <span style={{ fontSize: 18 }}>→</span>}
+            </button>
 
-      <button onClick={() => { setSignup(s => !s); setErr(""); }} style={{ marginTop: 22, background: "transparent", border: "none", color: C.muted, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
-        {signup ? "Have a code? Sign in" : "First time? Create an account"}
-      </button>
-
-      <div style={{ fontSize: 11, color: C.faint, marginTop: 24, maxWidth: 260, lineHeight: 1.5 }}>
-        Your code is how you sign back in — keep it somewhere safe.
+            {step === "code" && (
+              <button onClick={() => { setStep("email"); setCode(""); setErr(""); }} style={{ marginTop: 14, width: "100%", background: "transparent", border: "none", color: C.muted, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+                ← Use a different email
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
