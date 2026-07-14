@@ -39,49 +39,47 @@ function WorkoutPage({ plan, workoutDay, setWorkoutDay, onOpenUpload }) {
   const day = plan?.days?.[DAY_LABELS[workoutDay]] || null;
   const hasEx = day && Array.isArray(day.exercises) && day.exercises.length > 0;
 
-  if (!plan) {
-    return (
-      <div key="workout" style={{ display: "flex", flexDirection: "column", gap: 14, animation: "tukaIn 0.35s ease" }}>
-        <Card style={{ padding: "44px 22px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12, textAlign: "center" }}>
-          <img src="/dumbbell.png" alt="" width={30} height={30} style={{ opacity: 0.4 }} />
-          <div style={{ fontSize: 15, fontWeight: 600 }}>No workout plan yet</div>
-          <div style={{ fontSize: 13, color: C.faint, maxWidth: 260, lineHeight: 1.5 }}>Upload your plan as a PDF and we'll lay it out day by day.</div>
-          <button onClick={onOpenUpload} style={{ marginTop: 6, background: C.text, color: C.bg, border: "none", borderRadius: 999, padding: "12px 22px", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>⤒ Upload plan</button>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div key="workout" style={{ display: "flex", flexDirection: "column", gap: 14, animation: "tukaIn 0.35s ease" }}>
       <Card>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <Eyebrow>Workout plan</Eyebrow>
-          <button onClick={onOpenUpload} style={{ background: "transparent", border: `1px solid ${C.border}`, borderRadius: 999, padding: "6px 12px", color: C.text, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>⤒ Upload</button>
+          <button onClick={onOpenUpload} style={{ background: C.text, border: "none", borderRadius: 999, padding: "6px 13px", color: C.bg, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>⤒ Upload</button>
         </div>
-        <div style={{ display: "flex", gap: 6, marginTop: 14 }}>
-          {WEEK_ORDER.map(dow => {
-            const active = dow === workoutDay;
-            const isToday = dow === todayDow;
-            return (
-              <button key={dow} onClick={() => setWorkoutDay(dow)} style={{
-                flex: 1, padding: "8px 0", borderRadius: 10, border: `1px solid ${active ? C.text : C.border}`,
-                background: active ? C.text : "transparent", color: active ? C.bg : (isToday ? C.text : C.faint),
-                fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-              }}>{DAY_LABELS[dow][0]}</button>
-            );
-          })}
-        </div>
-        <div style={{ marginTop: 18 }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-            <span style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em" }}>{hasEx ? (day.title || "Workout") : "Rest day"}</span>
-            {workoutDay === todayDow && <span style={{ fontSize: 11, color: C.positive, fontWeight: 600 }}>· today</span>}
+
+        {!plan ? (
+          <div style={{ padding: "34px 0 8px", display: "flex", flexDirection: "column", alignItems: "center", gap: 10, textAlign: "center" }}>
+            <img src="/dumbbell.png" alt="" width={30} height={30} style={{ opacity: 0.4 }} />
+            <div style={{ fontSize: 15, fontWeight: 600 }}>No workout plan yet</div>
+            <div style={{ fontSize: 13, color: C.faint, maxWidth: 280, lineHeight: 1.5 }}>Already have a plan? Tap <b style={{ color: C.text }}>⤒ Upload</b> (top-right) and add it as a PDF — we'll lay it out day by day.</div>
           </div>
-          {hasEx && day.focus && <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>{day.focus}</div>}
-        </div>
+        ) : (
+          <>
+            <div style={{ display: "flex", gap: 6, marginTop: 14 }}>
+              {WEEK_ORDER.map(dow => {
+                const active = dow === workoutDay;
+                const isToday = dow === todayDow;
+                return (
+                  <button key={dow} onClick={() => setWorkoutDay(dow)} style={{
+                    flex: 1, padding: "8px 0", borderRadius: 10, border: `1px solid ${active ? C.text : C.border}`,
+                    background: active ? C.text : "transparent", color: active ? C.bg : (isToday ? C.text : C.faint),
+                    fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                  }}>{DAY_LABELS[dow][0]}</button>
+                );
+              })}
+            </div>
+            <div style={{ marginTop: 18 }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                <span style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em" }}>{hasEx ? (day.title || "Workout") : "Rest day"}</span>
+                {workoutDay === todayDow && <span style={{ fontSize: 11, color: C.positive, fontWeight: 600 }}>· today</span>}
+              </div>
+              {hasEx && day.focus && <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>{day.focus}</div>}
+            </div>
+          </>
+        )}
       </Card>
 
-      {!hasEx ? (
+      {plan && (!hasEx ? (
         <Card style={{ padding: "48px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
           <img src="/dumbbell.png" alt="" width={28} height={28} style={{ opacity: 0.4 }} />
           <div style={{ fontSize: 13, color: C.faint }}>Recovery day — no lifting.</div>
@@ -99,7 +97,7 @@ function WorkoutPage({ plan, workoutDay, setWorkoutDay, onOpenUpload }) {
             </div>
           ))}
         </Card>
-      )}
+      ))}
     </div>
   );
 }
