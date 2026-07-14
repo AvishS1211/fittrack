@@ -389,36 +389,29 @@ function BottomNav({ view, setView }) {
   );
 }
 
-// ── Onboarding / auth: enter email, then a 4-digit code to be remembered ──
+// ── Onboarding / auth: sign in with a 4-digit code; new users sign up with email + code ──
 function AuthScreen({ onAuthed }) {
-  const [step, setStep] = useState("email"); // email | code
+  const [signup, setSignup] = useState(false);
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
-  const [existing, setExisting] = useState(false); // does this email already have an account?
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const em = email.trim().toLowerCase();
 
-  const nextFromEmail = async () => {
-    if (!em.includes("@") || !em.includes(".")) { setErr("Enter a valid email"); return; }
+  const login = async () => {
+    if (!/^\d{4}$/.test(code)) { setErr("Enter your 4-digit code"); return; }
     setBusy(true); setErr("");
-    const { data, error } = await supabase.from("tuka_users").select("id").eq("email", em).maybeSingle();
+    const { data, error } = await supabase.from("tuka_users").select("id,email").eq("code", code).maybeSingle();
     setBusy(false);
     if (error) { setErr("Something went wrong — try again"); return; }
-    setExisting(!!data);
-    setStep("code");
+    if (!data) { setErr("No account with that code"); return; }
+    onAuthed({ id: data.id, email: data.email });
   };
 
-  const submitCode = async () => {
-    if (!/^\d{4}$/.test(code)) { setErr("Enter a 4-digit code"); return; }
+  const create = async () => {
+    if (!em.includes("@") || !em.includes(".")) { setErr("Enter a valid email"); return; }
+    if (!/^\d{4}$/.test(code)) { setErr("Pick a 4-digit code"); return; }
     setBusy(true); setErr("");
-    if (existing) {
-      const { data } = await supabase.from("tuka_users").select("id").eq("email", em).eq("code", code).maybeSingle();
-      setBusy(false);
-      if (data) onAuthed({ id: data.id, email: em });
-      else setErr("Wrong code for this email");
-      return;
-    }
     const id = crypto.randomUUID();
     const { error } = await supabase.from("tuka_users").insert({ id, email: em, code });
     setBusy(false);
@@ -426,10 +419,13 @@ function AuthScreen({ onAuthed }) {
     onAuthed({ id, email: em });
   };
 
+  const submit = signup ? create : login;
+
   const fld = {
     width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 16,
     padding: "17px 18px", color: C.text, fontSize: 16, fontFamily: "inherit", outline: "none",
   };
+  const codeFld = { ...fld, textAlign: "center", fontSize: 28, fontWeight: 700, letterSpacing: "0.5em", paddingLeft: 24 };
   const cta = {
     width: "100%", boxSizing: "border-box", marginTop: 12, padding: "17px", borderRadius: 16, border: "none", cursor: "pointer",
     background: C.text, color: C.bg, fontSize: 16, fontWeight: 700, fontFamily: "inherit",
@@ -443,33 +439,30 @@ function AuthScreen({ onAuthed }) {
         <div style={{ maxWidth: 480, margin: "0 auto" }}>
           <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.15 }}>Start Your Fitness Journey</div>
           <div style={{ fontSize: 13, color: C.muted, marginTop: 8 }}>
-            {step === "email" ? "Enter your email to begin." : existing ? "Enter your code to sign in." : "Set a 4-digit code you'll remember."}
+            {signup ? "Create your account with an email and a 4-digit code." : "Enter your code to continue."}
           </div>
 
           <div style={{ marginTop: 20 }}>
-            {step === "email" ? (
+            {signup && (
               <input type="email" inputMode="email" autoCapitalize="off" autoCorrect="off" spellCheck={false}
                 value={email} placeholder="Enter your email"
                 onChange={e => { setEmail(e.target.value); setErr(""); }}
-                onKeyDown={e => e.key === "Enter" && nextFromEmail()} style={fld} />
-            ) : (
-              <input type="tel" inputMode="numeric" maxLength={4} autoFocus value={code} placeholder="• • • •"
-                onChange={e => { setCode(e.target.value.replace(/\D/g, "").slice(0, 4)); setErr(""); }}
-                onKeyDown={e => e.key === "Enter" && submitCode()}
-                style={{ ...fld, textAlign: "center", fontSize: 28, fontWeight: 700, letterSpacing: "0.5em", paddingLeft: 24 }} />
+                style={{ ...fld, marginBottom: 10 }} />
             )}
+            <input type="tel" inputMode="numeric" maxLength={4} value={code} placeholder="• • • •"
+              onChange={e => { setCode(e.target.value.replace(/\D/g, "").slice(0, 4)); setErr(""); }}
+              onKeyDown={e => e.key === "Enter" && submit()}
+              style={codeFld} />
 
             {err && <div style={{ fontSize: 12, color: C.warning, marginTop: 10 }}>{err}</div>}
 
-            <button onClick={step === "email" ? nextFromEmail : submitCode} disabled={busy} style={{ ...cta, opacity: busy ? 0.6 : 1 }}>
-              {busy ? "…" : "Continue"} {!busy && <span style={{ fontSize: 18 }}>→</span>}
+            <button onClick={submit} disabled={busy} style={{ ...cta, opacity: busy ? 0.6 : 1 }}>
+              {busy ? "…" : (signup ? "Create account" : "Sign in")} {!busy && <span style={{ fontSize: 18 }}>→</span>}
             </button>
 
-            {step === "code" && (
-              <button onClick={() => { setStep("email"); setCode(""); setErr(""); }} style={{ marginTop: 14, width: "100%", background: "transparent", border: "none", color: C.muted, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
-                ← Use a different email
-              </button>
-            )}
+            <button onClick={() => { setSignup(s => !s); setErr(""); setCode(""); }} style={{ marginTop: 16, width: "100%", background: "transparent", border: "none", color: C.muted, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+              {signup ? "Already have a code? Sign in" : "New here? Create an account"}
+            </button>
           </div>
         </div>
       </div>
