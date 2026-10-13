@@ -261,7 +261,7 @@ function DietPage({ weightKg, body }) {
 }
 
 // ── Body composition page (BMR + segmental lean/fat) ──
-function BodyPage({ body, email, onEdit, onUpload, analyzing, onSignOut }) {
+function BodyPage({ body, onEdit, onUpload, analyzing }) {
   const [mode, setMode] = useState("lean"); // lean | fat
   const fileRef = useRef(null);
   const segs = body ? (mode === "lean" ? body.lean : body.fat) : null;
@@ -270,15 +270,6 @@ function BodyPage({ body, email, onEdit, onUpload, analyzing, onSignOut }) {
   const src = segs ? (STATUS_IMG[segs.trunk.status] || "/lean.png") : "/lean.png";
   return (
     <div key="bmr" style={{ display: "flex", flexDirection: "column", gap: 14, animation: "tukaIn 0.35s ease" }}>
-      {/* account */}
-      <Card style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px" }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 10, color: C.faint, letterSpacing: "0.08em", textTransform: "uppercase" }}>Signed in</div>
-          <div style={{ fontSize: 13, color: C.text, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{email || "—"}</div>
-        </div>
-        <button onClick={onSignOut} style={{ background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 999, padding: "8px 16px", color: C.muted, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Sign out</button>
-      </Card>
-
       {/* stats */}
       <Card>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -389,87 +380,6 @@ function BottomNav({ view, setView }) {
   );
 }
 
-// ── Onboarding / auth: sign in with a 4-digit code; new users sign up with email + code ──
-function AuthScreen({ onAuthed }) {
-  const [signup, setSignup] = useState(false);
-  const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [err, setErr] = useState("");
-  const [busy, setBusy] = useState(false);
-  const em = email.trim().toLowerCase();
-
-  const login = async () => {
-    if (!/^\d{4}$/.test(code)) { setErr("Enter your 4-digit code"); return; }
-    setBusy(true); setErr("");
-    const { data, error } = await supabase.from("tuka_users").select("id,email").eq("code", code).maybeSingle();
-    setBusy(false);
-    if (error) { setErr("Something went wrong — try again"); return; }
-    if (!data) { setErr("No account with that code"); return; }
-    onAuthed({ id: data.id, email: data.email });
-  };
-
-  const create = async () => {
-    if (!em.includes("@") || !em.includes(".")) { setErr("Enter a valid email"); return; }
-    if (!/^\d{4}$/.test(code)) { setErr("Pick a 4-digit code"); return; }
-    setBusy(true); setErr("");
-    const id = crypto.randomUUID();
-    const { error } = await supabase.from("tuka_users").insert({ id, email: em, code });
-    setBusy(false);
-    if (error) { setErr(error.code === "23505" ? "That code is taken — pick another" : "Couldn't create account — try again"); return; }
-    onAuthed({ id, email: em });
-  };
-
-  const submit = signup ? create : login;
-
-  const fld = {
-    width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 16,
-    padding: "17px 18px", color: C.text, fontSize: 16, fontFamily: "inherit", outline: "none",
-  };
-  const codeFld = { ...fld, textAlign: "center", fontSize: 28, fontWeight: 700, letterSpacing: "0.5em", paddingLeft: 24 };
-  const cta = {
-    width: "100%", boxSizing: "border-box", marginTop: 12, padding: "17px", borderRadius: 16, border: "none", cursor: "pointer",
-    background: C.text, color: C.bg, fontSize: 16, fontWeight: 700, fontFamily: "inherit",
-    display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-  };
-
-  return (
-    <div style={{ position: "fixed", inset: 0, background: `#0C0C0C url(/onboard.png) center top / cover no-repeat`, color: C.text, fontFamily: "'Inter', -apple-system, system-ui, sans-serif", WebkitFontSmoothing: "antialiased" }}>
-      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&display=swap" rel="stylesheet" />
-      <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: "60px 22px calc(env(safe-area-inset-bottom) + 24px)", background: "linear-gradient(180deg, rgba(12,12,12,0) 0%, rgba(12,12,12,0.82) 26%, #0C0C0C 66%)" }}>
-        <div style={{ maxWidth: 480, margin: "0 auto" }}>
-          <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.15 }}>Start Your Fitness Journey</div>
-          <div style={{ fontSize: 13, color: C.muted, marginTop: 8 }}>
-            {signup ? "Create your account with an email and a 4-digit code." : "Enter your code to continue."}
-          </div>
-
-          <div style={{ marginTop: 20 }}>
-            {signup && (
-              <input type="email" inputMode="email" autoCapitalize="off" autoCorrect="off" spellCheck={false}
-                value={email} placeholder="Enter your email"
-                onChange={e => { setEmail(e.target.value); setErr(""); }}
-                style={{ ...fld, marginBottom: 10 }} />
-            )}
-            <input type="tel" inputMode="numeric" maxLength={4} value={code} placeholder="• • • •"
-              onChange={e => { setCode(e.target.value.replace(/\D/g, "").slice(0, 4)); setErr(""); }}
-              onKeyDown={e => e.key === "Enter" && submit()}
-              style={codeFld} />
-
-            {err && <div style={{ fontSize: 12, color: C.warning, marginTop: 10 }}>{err}</div>}
-
-            <button onClick={submit} disabled={busy} style={{ ...cta, opacity: busy ? 0.6 : 1 }}>
-              {busy ? "…" : (signup ? "Create account" : "Sign in")} {!busy && <span style={{ fontSize: 18 }}>→</span>}
-            </button>
-
-            <button onClick={() => { setSignup(s => !s); setErr(""); setCode(""); }} style={{ marginTop: 16, width: "100%", background: "transparent", border: "none", color: C.muted, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
-              {signup ? "Already have a code? Sign in" : "New here? Create an account"}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── Body composition editor ──
 const BODY_PARTS = [["rightArm", "Right arm"], ["leftArm", "Left arm"], ["trunk", "Trunk"], ["rightLeg", "Right leg"], ["leftLeg", "Left leg"]];
 const STATUSES = ["Normal", "Over", "Under"];
@@ -560,37 +470,29 @@ export default function TukaApp() {
   const [workoutDay, setWorkoutDay] = useState(new Date().getDay()); // 0=Sun..6=Sat
   const [refreshing, setRefreshing] = useState(false);
   const [toast, setToast] = useState(null);
-  // Lightweight code-based login: the signed-in user is remembered on-device.
-  const [user, setUser] = useState(() => {
-    try { const u = JSON.parse(localStorage.getItem("tuka_user") || "null"); return u && u.id ? u : null; }
-    catch { return null; }
-  });
-  const [body, setBody] = useState(null);            // per-user body composition (from DB)
+  const [body, setBody] = useState(null);            // body composition (from DB)
   const [showBodyEdit, setShowBodyEdit] = useState(false);
   const [bodyEditInitial, setBodyEditInitial] = useState(null); // data to prefill the editor
   const [analyzing, setAnalyzing] = useState(false);
-  const [workout, setWorkout] = useState(null);      // per-user uploaded workout plan
+  const [workout, setWorkout] = useState(null);      // uploaded workout plan
   const [showWorkoutUpload, setShowWorkoutUpload] = useState(false);
 
-  const userId = user?.id;
+  // No login — the app always uses this single owner bucket.
+  const userId = "94c052eb-4c94-4e8c-bf37-86a740b448c0";
 
-  const onAuthed = (u) => { localStorage.setItem("tuka_user", JSON.stringify(u)); setUser(u); };
-  const signOut = () => { localStorage.removeItem("tuka_user"); setUser(null); setWeights([]); setTargets([]); setBody(null); setWorkout(null); };
-
-  // Load this user's data (every query is scoped to their user_id).
+  // Load data on mount.
   useEffect(() => {
-    if (!user) return;
     (async () => {
-      const { data: w } = await supabase.from("tuka_weights").select("*").eq("user_id", user.id).order("date", { ascending: true });
-      const { data: t } = await supabase.from("tuka_targets").select("*").eq("user_id", user.id).order("id", { ascending: true });
-      const { data: b } = await supabase.from("tuka_body").select("data").eq("user_id", user.id).maybeSingle();
-      const { data: wk } = await supabase.from("tuka_workout").select("data").eq("user_id", user.id).maybeSingle();
+      const { data: w } = await supabase.from("tuka_weights").select("*").eq("user_id", userId).order("date", { ascending: true });
+      const { data: t } = await supabase.from("tuka_targets").select("*").eq("user_id", userId).order("id", { ascending: true });
+      const { data: b } = await supabase.from("tuka_body").select("data").eq("user_id", userId).maybeSingle();
+      const { data: wk } = await supabase.from("tuka_workout").select("data").eq("user_id", userId).maybeSingle();
       setWeights(w || []);
       setTargets((t || []).map(r => ({ id: r.id, value: r.value })));
       setBody(b?.data ?? null);
       setWorkout(wk?.data ?? null);
     })();
-  }, [user]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const saveBody = async (data) => {
     setBody(data);
@@ -770,8 +672,6 @@ export default function TukaApp() {
     padding: "12px 14px", color: C.text, fontSize: 15, fontFamily: "inherit", width: "100%",
   };
 
-  if (!user) return <AuthScreen onAuthed={onAuthed} />;
-
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'Inter', -apple-system, system-ui, sans-serif", maxWidth: 480, margin: "0 auto", padding: "0 16px calc(env(safe-area-inset-bottom) + 104px)", position: "relative", WebkitFontSmoothing: "antialiased" }}>
       <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400..700;1,14..32,400..600&display=swap" rel="stylesheet" />
@@ -902,7 +802,7 @@ export default function TukaApp() {
       {view === "diet" && <DietPage weightKg={latest ? Number(latest.kg) : null} body={body} />}
 
       {/* ── BMR / BODY ── */}
-      {view === "bmr" && <BodyPage body={body} email={user.email} onEdit={() => openBodyEdit(body)} onUpload={analyzeBMR} analyzing={analyzing} onSignOut={signOut} />}
+      {view === "bmr" && <BodyPage body={body} onEdit={() => openBodyEdit(body)} onUpload={analyzeBMR} analyzing={analyzing} />}
 
       {/* Target popup */}
       {showTarget && (
